@@ -205,8 +205,8 @@
             "uid": "P3875CC3B49F869A8"
           },
           "editorMode": "code",
-          "expr": "topk(${top_k},\n  gardening_attention_urgency_ratio\n)",
-          "legendFormat": "{{plant}}"
+          "expr": "topk(${top_k},\n  gardening_attention_urgency_ratio\n) * on (plant) group_left(name)\n  gardening_journal_plant_info",
+          "legendFormat": "{{name}}"
         }
       ]
     },
@@ -258,8 +258,8 @@
             "uid": "P3875CC3B49F869A8"
           },
           "editorMode": "code",
-          "expr": "topk(${top_k},\n  gardening_attention_watering_cadence_seconds\n)",
-          "legendFormat": "{{plant}}"
+          "expr": "topk(${top_k},\n  gardening_attention_watering_cadence_seconds\n) * on (plant) group_left(name)\n  gardening_journal_plant_info",
+          "legendFormat": "{{name}}"
         }
       ]
     },
@@ -279,7 +279,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "short",
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "smooth",
@@ -311,7 +311,7 @@
             "uid": "P3875CC3B49F869A8"
           },
           "editorMode": "code",
-          "expr": "sum by (action) (\n  rate(gardening_journal_operations_total[5m])\n)",
+          "expr": "sum by (action) (\n  increase(gardening_journal_operations_total[$__rate_interval])\n)\nor on() vector(0)",
           "legendFormat": "{{action}}"
         }
       ]
@@ -332,7 +332,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "short",
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "smooth",
@@ -364,7 +364,7 @@
             "uid": "P3875CC3B49F869A8"
           },
           "editorMode": "code",
-          "expr": "sum by (level) (\n  rate(gardening_journal_moisture_readings_total[5m])\n)",
+          "expr": "sum by (level) (\n  increase(gardening_journal_moisture_readings_total[$__rate_interval])\n)\nor on() vector(0)",
           "legendFormat": "{{level}}"
         }
       ]
@@ -385,7 +385,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "short",
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "smooth",
@@ -417,8 +417,8 @@
             "uid": "P3875CC3B49F869A8"
           },
           "editorMode": "code",
-          "expr": "topk(${top_k},\n  sum by (plant) (\n    rate(gardening_journal_repots_total[5m])\n  )\n)",
-          "legendFormat": "{{plant}}"
+          "expr": "topk(${top_k},\n  (\n    (\n      sum by (plant) (\n        increase(gardening_journal_repots_total[$__rate_interval])\n      )\n      or on (plant)\n      sum by (plant) (\n        gardening_journal_plant_info * 0\n      )\n    )\n    * on (plant) group_left(name)\n    gardening_journal_plant_info\n  )\n)\nor on() vector(0)",
+          "legendFormat": "{{name}}"
         }
       ]
     },
@@ -438,7 +438,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "short",
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "smooth",
@@ -470,8 +470,8 @@
             "uid": "P3875CC3B49F869A8"
           },
           "editorMode": "code",
-          "expr": "sum by (component) (\n  rate(gardening_journal_substrate_component_usage_total[5m])\n)",
-          "legendFormat": "{{component}}"
+          "expr": "(\n  (\n    sum by (component) (\n      increase(gardening_journal_substrate_component_usage_total[$__rate_interval])\n    )\n    or on (component)\n    sum by (component) (\n      gardening_journal_substrate_component_info * 0\n    )\n  )\n  * on (component) group_left(name)\n  gardening_journal_substrate_component_info\n)\nor on() vector(0)",
+          "legendFormat": "{{name}}"
         }
       ]
     },
@@ -491,7 +491,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "short",
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "smooth",
@@ -523,8 +523,8 @@
             "uid": "P3875CC3B49F869A8"
           },
           "editorMode": "code",
-          "expr": "sum by (pesticide) (\n  rate(gardening_journal_pesticide_applications_total[5m])\n)",
-          "legendFormat": "{{pesticide}}"
+          "expr": "(\n  (\n    sum by (pesticide) (\n      increase(gardening_journal_pesticide_applications_total[$__rate_interval])\n    )\n    or on (pesticide)\n    sum by (pesticide) (\n      gardening_journal_pesticide_info * 0\n    )\n  )\n  * on (pesticide) group_left(name)\n  gardening_journal_pesticide_info\n)\nor on() vector(0)",
+          "legendFormat": "{{name}}"
         }
       ]
     },

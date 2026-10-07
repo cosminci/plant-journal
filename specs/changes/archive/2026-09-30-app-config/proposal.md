@@ -1,8 +1,6 @@
 # Externalize business and deployment configuration
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: open from creation through implementation, archived per [the SDD skill's Archive PR phase](../../../.agents/skills/sdd/SKILL.md).
-
 **Date:** 2026-09-29
 
 **Classification:** feature

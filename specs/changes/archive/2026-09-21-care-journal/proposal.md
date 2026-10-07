@@ -1,9 +1,5 @@
 # Care journal — plants and their dated care log
 
-> Standard: Agentic Engineering Standards v1.2.0
->
-> Lifetime: open from creation through implementation, archived in the Sync & Archive step.
-
 **Date:** 2026-09-15
 
 ## What

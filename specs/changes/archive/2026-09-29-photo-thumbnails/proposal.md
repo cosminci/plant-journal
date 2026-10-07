@@ -1,8 +1,6 @@
 # Photo thumbnails
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: open from creation through implementation, archived per [the SDD skill's Archive PR phase](../../../.agents/skills/sdd/SKILL.md).
-
 **Date:** 2026-09-28
 
 **Grounded in:** A disposable JVM prototype against the real sample photos already in local storage found that downscaling to a bounded size and re-encoding at a searched JPEG quality reliably lands real originals at or under a 100KB target. A second prototype, the in-flight-write record and its recovery against a real SQLite database, confirmed all three crash points (before content lands, after content lands, after normal completion) are distinguishable and recoverable at the next startup — and that running the same reconciliation while the process is still live would need an untested age floor to avoid racing a request that's merely slow, not crashed, which is why recovery runs at startup only.

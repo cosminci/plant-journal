@@ -1,9 +1,5 @@
 # Editable nomenclatures
 
-> Standard: Agentic Engineering Standards v1.2.0
->
-> Lifetime: archived after implementation and living-doc sync.
-
 **Date:** 2026-09-21
 
 ## What & Why

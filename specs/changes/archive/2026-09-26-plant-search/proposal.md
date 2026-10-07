@@ -1,8 +1,6 @@
 # Plant search
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: open from creation through implementation, archived in the [sync docs & archive step](../../agentic-workflows.md#a-structured-development-skills).
-
 **Date:** 2026-09-26
 
 Add a header search box that filters the visible plant list by nickname, species, or location.

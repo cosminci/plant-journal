@@ -1,8 +1,6 @@
 # Local development from a NAS snapshot
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: archived after implementation and living-doc sync.
-
 **Date:** 2026-09-24
 
 Give a developer a repeatable local startup workflow with an optional, safe copy of the household journal.

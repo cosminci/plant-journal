@@ -1,8 +1,6 @@
 # Substrate-mix aliases
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: open from creation through implementation, archived in the [sync docs & archive step](../../agentic-workflows.md#a-structured-development-skills).
-
 **Date:** 2026-09-25
 
 Adds a named substrate-mix alias, saved independently of any plant or operation.

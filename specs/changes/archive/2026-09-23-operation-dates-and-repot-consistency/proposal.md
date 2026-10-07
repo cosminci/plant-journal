@@ -1,8 +1,6 @@
 # Journal dates and plant data freshness
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: archived after implementation and living-doc sync.
-
 **Date:** 2026-09-23
 
 Give the person logging an operation control over when it happened, make dates readable, and read current plant details independently of periodic watering attention.

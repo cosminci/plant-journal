@@ -1,8 +1,6 @@
 # Mobile-friendly layout and dialog behavior
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: open from creation through implementation, archived per [the SDD skill's Archive PR phase](../../../.agents/skills/sdd/SKILL.md).
-
 **Date:** 2026-09-28
 
 **Grounded in:** Testing the running app on a real phone, in both orientations, surfaced defects code review alone did not — width-only breakpoints that miss a landscape phone's actual width, and dialogs that broke specifically during their close transition. That is why this spec follows a spike rather than preceding it.

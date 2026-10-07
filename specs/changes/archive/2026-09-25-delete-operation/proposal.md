@@ -1,8 +1,6 @@
 # Delete a logged operation
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: archived after implementation and living-doc sync.
-
 **Date:** 2026-09-25
 
 Let a household permanently remove a mistakenly logged operation from its editor, guarded by the same irreversible-action confirmation used for archiving a plant.

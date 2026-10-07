@@ -1,8 +1,6 @@
 # Edit an active plant's details
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: open from creation through implementation, archived in the [sync docs & archive step](../../agentic-workflows.md#a-structured-development-skills).
-
 **Date:** 2026-09-25
 
 Correct an active plant's species, nickname, location, and current substrate directly, without logging an operation.

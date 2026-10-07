@@ -1,8 +1,6 @@
 # Capability boundaries and living-doc knowledge ownership
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
-> Lifetime: open from creation through implementation, archived in the sync docs & archive step.
-
 **Date:** 2026-09-26
 
 Split the backend's `domain/` into types, use cases, business ports, and generic capabilities; name persistence adapters by technology; rename `Plants`/`Operations` to close a naming gap; and stop living docs from enumerating concrete classes or packages, so none of this — or a future rename or a new adapter — requires a doc edit.

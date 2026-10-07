@@ -1,8 +1,6 @@
 # Garden and cemetery views for archived plants
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0 (accessed 2026-09-23).
-> Lifetime: archived after implementation and living-doc sync.
-
 **Date:** 2026-09-23
 
 Browse archived plants alongside the garden and permanently retire plants with an explicit confirmation.

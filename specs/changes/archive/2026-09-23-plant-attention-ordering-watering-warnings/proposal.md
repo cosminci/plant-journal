@@ -2,8 +2,6 @@
 
 > Standard: [Agentic Engineering Standards](https://github.com/Adobe-AIFoundations/agentic-workflow-standards) v1.2.0.
 >
-> Lifetime: archived after implementation and living-doc sync.
-
 **Date:** 2026-09-22
 
 Derive plant attention from bounded watering history and publish it for presentation and future metrics export.

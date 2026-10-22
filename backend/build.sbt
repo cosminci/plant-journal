@@ -3,7 +3,7 @@ ThisBuild / organization := "com.cosminci.gardening"
 ThisBuild / version      := "0.1.0"
 
 val tapirV             = "1.13.31"
-val apispecV           = "0.11.10"
+val apispecV           = "0.12.0"
 val ironV              = "3.3.2"
 val munitV             = "1.3.6"
 val magnumV            = "1.3.1"

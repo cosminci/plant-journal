@@ -95,11 +95,10 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
 
     manager.warmDisplayNames()
 
+    val expectedDisplayNames = Vector(PlantStatus.Active -> Vector(plant.id -> "Fern"), PlantStatus.Archived -> Vector(archived.id -> "Ficus lyrata"))
+
     assertEquals(refs.requestedStatuses.get(), Vector(PlantStatus.Active, PlantStatus.Archived))
-    assertEquals(
-      refs.displayNameWrites.get(),
-      Vector(PlantStatus.Active -> Vector(plant.id -> "Fern"), PlantStatus.Archived -> Vector(archived.id -> "Ficus lyrata"))
-    )
+    assertEquals(refs.displayNameWrites.get(), expectedDisplayNames)
 
   test("should still hydrate active display names when the archived read fails at startup"):
     val refs         = Refs()

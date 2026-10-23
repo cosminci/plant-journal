@@ -18,6 +18,7 @@ import gardening.usecases.SubstrateCatalog
 import gardening.ports.SubstrateCatalogMetricsApi
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import ox.{Ox, discard, forkDiscard, sleep}
+import scala.util.chaining.scalaUtilChainingOps
 
 final case class Programs(
     plants: PlantManager,
@@ -54,10 +55,10 @@ object Programs:
     forkDiscard:
       Iterator.continually { sleep(config.attention.recomputeInterval); attention.refreshAll.discard }.foreach(identity)
     Programs(
-      PlantManager.make(using plantStore, substrateStore, UuidIdGenerator, plantLock),
+      PlantManager.make(using plantStore, substrateStore, UuidIdGenerator, plantLock).tap(_.warmDisplayNames()),
       PhotoManager.make(using photoStore, contentStore, photoWriteJournal, thumbnailGenerator, UuidIdGenerator, SystemClock),
       OperationLedger.make(using operationStore, plantStore, substrateStore, pesticideStore, UuidIdGenerator, plantLock),
       attention,
-      SubstrateCatalog.make(using substrateStore, UuidIdGenerator),
-      PesticideCatalog.make(using pesticideStore, UuidIdGenerator)
+      SubstrateCatalog.make(using substrateStore, UuidIdGenerator).tap(_.warmDisplayNames()),
+      PesticideCatalog.make(using pesticideStore, UuidIdGenerator).tap(_.warmDisplayNames())
     )

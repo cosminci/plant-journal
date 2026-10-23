@@ -17,11 +17,6 @@ import scala.util.chaining.scalaUtilChainingOps
 
 class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
 
-  private given metrics: PlantManagerMetricsApi = new PlantManagerMetricsApi:
-    def setPlantsCount(status: PlantStatus, count: Long): Unit                              = ()
-    def incrementSubstrateComponent(component: SubstrateComponentId): Unit                  = ()
-    def setPlantsDisplayNames(status: PlantStatus, plants: Vector[(PlantId, String)]): Unit = ()
-
   private val perliteId  = SubstrateComponentId(UUID.fromString("00000000-0000-4000-8000-000000000003"))
   private val pineBarkId = SubstrateComponentId(UUID.fromString("00000000-0000-4000-8000-000000000004"))
   private val sand3to5Id = SubstrateComponentId(UUID.fromString("00000000-0000-4000-8000-000000000005"))
@@ -91,6 +86,28 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
     assertEquals(activeResult, GetPlantsResult.Read(Vector(plant, unnamed)))
     assertEquals(refs.requestedStatuses.get(), Vector(PlantStatus.Active))
     assertEquals(archivedResult, GetPlantsResult.ReadFailed(failure))
+
+  test("should hydrate display names for active and archived plants at startup"):
+    val archived     = plant.copy(id = PlantId("p9"), details = plant.details.copy(status = PlantStatus.Archived, maybeNickname = None))
+    val refs         = Refs()
+    val archivedRead = Some(GetPlantsResult.Read(Vector(archived)))
+    val manager      = buildManager(refs, getPlantsResult = GetPlantsResult.Read(Vector(plant)), archivedPlantsResult = archivedRead)
+
+    manager.warmDisplayNames()
+
+    val expectedDisplayNames = Vector(PlantStatus.Active -> Vector(plant.id -> "Fern"), PlantStatus.Archived -> Vector(archived.id -> "Ficus lyrata"))
+
+    assertEquals(refs.requestedStatuses.get(), Vector(PlantStatus.Active, PlantStatus.Archived))
+    assertEquals(refs.displayNameWrites.get(), expectedDisplayNames)
+
+  test("should still hydrate active display names when the archived read fails at startup"):
+    val refs         = Refs()
+    val archivedRead = Some(GetPlantsResult.ReadFailed(RuntimeException("archived read failed")))
+    val manager      = buildManager(refs, getPlantsResult = GetPlantsResult.Read(Vector(plant)), archivedPlantsResult = archivedRead)
+
+    manager.warmDisplayNames()
+
+    assertEquals(refs.displayNameWrites.get(), Vector(PlantStatus.Active -> Vector(plant.id -> "Fern")))
 
   test("should read a non-negative archived count independently of plant lists"):
     val failure = RuntimeException("count unavailable")
@@ -169,14 +186,22 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
     assertEquals(refs.updatedPlants.get(), Vector.empty)
 
   final private case class Refs():
-    val createdPlants: AtomicReference[Vector[Plant]]           = AtomicReference(Vector.empty)
-    val requestedStatuses: AtomicReference[Vector[PlantStatus]] = AtomicReference(Vector.empty)
-    val updatedPlants: AtomicReference[Vector[Plant]]           = AtomicReference(Vector.empty)
+    val createdPlants: AtomicReference[Vector[Plant]]                                        = AtomicReference(Vector.empty)
+    val requestedStatuses: AtomicReference[Vector[PlantStatus]]                              = AtomicReference(Vector.empty)
+    val updatedPlants: AtomicReference[Vector[Plant]]                                        = AtomicReference(Vector.empty)
+    val displayNameWrites: AtomicReference[Vector[(PlantStatus, Vector[(PlantId, String)])]] = AtomicReference(Vector.empty)
+
+  private def recordingMetrics(refs: Refs): PlantManagerMetricsApi = new PlantManagerMetricsApi:
+    def setPlantsCount(status: PlantStatus, count: Long): Unit                              = ()
+    def incrementSubstrateComponent(component: SubstrateComponentId): Unit                  = ()
+    def setPlantsDisplayNames(status: PlantStatus, plants: Vector[(PlantId, String)]): Unit =
+      refs.displayNameWrites.updateAndGet(_ :+ (status -> plants)): Unit
 
   private def buildManager(
       refs: Refs = Refs(),
       addPlantResult: AddPlantResult = AddPlantResult.Added,
       getPlantsResult: GetPlantsResult = GetPlantsResult.Read(Vector.empty),
+      archivedPlantsResult: Option[GetPlantsResult] = None,
       archivedCountResult: ArchivedCountResult = ArchivedCountResult.Counted(0),
       getPlantResult: GetPlantResult = GetPlantResult.Read(plant),
       updatePlantResult: UpdatePlantResult = UpdatePlantResult.Updated,
@@ -187,7 +212,9 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
         refs.createdPlants.updateAndGet(_ :+ plant).pipe(_ => addPlantResult)
       override def getPlants(status: PlantStatus): GetPlantsResult =
         refs.requestedStatuses.updateAndGet(_ :+ status)
-        getPlantsResult
+        status match
+          case PlantStatus.Archived => archivedPlantsResult.getOrElse(getPlantsResult)
+          case _                    => getPlantsResult
       override def getArchivedCount: ArchivedCountResult        = archivedCountResult
       override def getPlant(plant: PlantId): GetPlantResult     = getPlantResult
       override def updatePlant(plant: Plant): UpdatePlantResult =
@@ -206,4 +233,4 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
         fail("plants must not write substrate mixes")
       override def deleteSubstrateMix(id: java.util.UUID): DeleteSubstrateMixResult =
         fail("plants must not delete substrate mixes")
-    PlantManager.make(using store, substrateStore, () => "id-1", PlantUpdateLock.make)
+    PlantManager.make(using store, substrateStore, () => "id-1", PlantUpdateLock.make)(using log, recordingMetrics(refs))

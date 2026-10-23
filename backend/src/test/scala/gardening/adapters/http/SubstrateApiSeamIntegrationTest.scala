@@ -171,6 +171,7 @@ class SubstrateApiSeamIntegrationTest extends munit.FunSuite:
       mixDeleteResult: DeleteSubstrateMixResult = DeleteSubstrateMixResult.Deleted
   ) =
     val catalog = new SubstrateCatalog:
+      override def warmDisplayNames(): Unit                                                         = ()
       override def getSubstrateComponents: GetSubstrateComponentsResult                             = readResult
       override def addSubstrateComponent(data: SubstrateComponentData): AddSubstrateComponentResult =
         refs.addedComponents.updateAndGet(_ :+ data).pipe(_ => addResult)

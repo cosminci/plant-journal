@@ -218,6 +218,7 @@ class PlantApiSeamIntegrationTest extends munit.FunSuite:
       refreshResult: RefreshAttentionResult = RefreshAttentionResult.Refreshed(AttentionProjection(date, Vector.empty))
   ) =
     val plants = new PlantManager:
+      override def warmDisplayNames(): Unit                                                                                                    = ()
       override def createPlant(species: Species, maybeNickname: Option[Nickname], location: Location, substrate: Substrate): CreatePlantResult =
         refs.createdDetails.updateAndGet(_ :+ PlantDetails(species, maybeNickname, location, substrate, PlantStatus.Active))
         createPlantResult

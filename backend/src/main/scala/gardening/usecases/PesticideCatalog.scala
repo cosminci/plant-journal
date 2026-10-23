@@ -17,6 +17,7 @@ trait PesticideCatalog:
   def addPesticide(data: PesticideData): AddPesticideResult
   def editPesticide(id: PesticideId, data: PesticideData): PesticideUpdateResult
   def archivePesticide(id: PesticideId): PesticideUpdateResult
+  def warmDisplayNames(): Unit
 
 object PesticideCatalog:
 
@@ -34,6 +35,9 @@ object PesticideCatalog:
         case GetPesticidesResult.ReadFailed(reason) => log.error("get pesticides", reason)
         case GetPesticidesResult.Read(found)        =>
           metrics.setPesticideDisplayNames(found.map(pesticide => pesticide.id -> pesticide.data.name.value))
+
+    override def warmDisplayNames(): Unit =
+      val _ = getPesticides
 
     override def addPesticide(data: PesticideData): AddPesticideResult =
       store.addPesticide(Pesticide(PesticideId(UUID.fromString(idGen.nextId())), data, PesticideStatus.Active)).tap:

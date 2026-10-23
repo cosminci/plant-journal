@@ -13,9 +13,6 @@ import scala.util.chaining.scalaUtilChainingOps
 
 class SubstrateCatalogComponentTest extends munit.FunSuite with TestImplicits:
 
-  private given metrics: SubstrateCatalogMetricsApi = new SubstrateCatalogMetricsApi:
-    def setComponentDisplayNames(components: Vector[(SubstrateComponentId, String)]): Unit = ()
-
   private val componentId   = SubstrateComponentId(UUID.fromString("10000000-0000-4000-8000-000000000001"))
   private val componentData = SubstrateComponentData(SubstrateComponentName("Pumice"), SubstrateComponentInfo("porous").some)
   private val component     = SubstrateComponent(componentId, componentData, SubstrateComponentStatus.Active)
@@ -145,7 +142,7 @@ class SubstrateCatalogComponentTest extends munit.FunSuite with TestImplicits:
 
   test("should hydrate display names from the store at startup and surface read failures"):
     val refs    = Refs()
-    val catalog = buildCatalog(refs, metricsApi = recordingMetrics(refs))
+    val catalog = buildCatalog(refs)
 
     catalog.warmDisplayNames()
 
@@ -153,8 +150,7 @@ class SubstrateCatalogComponentTest extends munit.FunSuite with TestImplicits:
 
   test("should leave display names untouched when the startup read fails"):
     val refs    = Refs()
-    val catalog =
-      buildCatalog(refs, readResult = GetSubstrateComponentsResult.ReadFailed(RuntimeException("read failed")), metricsApi = recordingMetrics(refs))
+    val catalog = buildCatalog(refs, readResult = GetSubstrateComponentsResult.ReadFailed(RuntimeException("read failed")))
 
     catalog.warmDisplayNames()
 
@@ -181,8 +177,7 @@ class SubstrateCatalogComponentTest extends munit.FunSuite with TestImplicits:
       mixReadResult: GetSubstrateMixesResult = GetSubstrateMixesResult.Read(Vector.empty),
       mixAddResult: SaveSubstrateMixResult = SaveSubstrateMixResult.Saved(mix),
       mixDeleteResult: DeleteSubstrateMixResult = DeleteSubstrateMixResult.Deleted,
-      nextId: () => String = () => componentId.value.toString,
-      metricsApi: SubstrateCatalogMetricsApi = metrics
+      nextId: () => String = () => componentId.value.toString
   ) =
     val store = new SubstrateStore:
       override def getSubstrateComponents: GetSubstrateComponentsResult                          = readResult
@@ -196,4 +191,4 @@ class SubstrateCatalogComponentTest extends munit.FunSuite with TestImplicits:
         refs.addedMixes.updateAndGet(_ :+ value).pipe(_ => mixAddResult)
       override def deleteSubstrateMix(id: UUID): DeleteSubstrateMixResult =
         refs.deletedMixes.updateAndGet(_ :+ id).pipe(_ => mixDeleteResult)
-    SubstrateCatalog.make(using store, () => nextId())(using log, metricsApi)
+    SubstrateCatalog.make(using store, () => nextId())(using log, recordingMetrics(refs))

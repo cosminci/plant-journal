@@ -12,9 +12,6 @@ import scala.util.chaining.scalaUtilChainingOps
 
 class PesticideCatalogComponentTest extends munit.FunSuite with TestImplicits:
 
-  private given metrics: PesticideCatalogMetricsApi = new PesticideCatalogMetricsApi:
-    def setPesticideDisplayNames(pesticides: Vector[(PesticideId, String)]): Unit = ()
-
   private val pesticideId   = PesticideId(UUID.fromString("10000000-0000-4000-8000-000000000002"))
   private val pesticideData = PesticideData(PesticideName("Sulfur"), PesticideType.Fungicide, PesticideInfo("2g/L").some)
   private val pesticide     = Pesticide(pesticideId, pesticideData, PesticideStatus.Active)
@@ -87,7 +84,7 @@ class PesticideCatalogComponentTest extends munit.FunSuite with TestImplicits:
 
   test("should hydrate display names from the store at startup and surface read failures"):
     val refs    = Refs()
-    val catalog = buildCatalog(refs, metricsApi = recordingMetrics(refs))
+    val catalog = buildCatalog(refs)
 
     catalog.warmDisplayNames()
 
@@ -95,8 +92,7 @@ class PesticideCatalogComponentTest extends munit.FunSuite with TestImplicits:
 
   test("should leave display names untouched when the startup read fails"):
     val refs    = Refs()
-    val catalog =
-      buildCatalog(refs, readResult = GetPesticidesResult.ReadFailed(RuntimeException("read failed")), metricsApi = recordingMetrics(refs))
+    val catalog = buildCatalog(refs, readResult = GetPesticidesResult.ReadFailed(RuntimeException("read failed")))
 
     catalog.warmDisplayNames()
 
@@ -118,8 +114,7 @@ class PesticideCatalogComponentTest extends munit.FunSuite with TestImplicits:
       addResult: AddPesticideResult = AddPesticideResult.Added(pesticide),
       getResult: GetPesticideResult = GetPesticideResult.RecordMissing,
       updateResult: UpdatePesticideResult = UpdatePesticideResult.Updated,
-      nextId: () => String = () => pesticideId.value.toString,
-      metricsApi: PesticideCatalogMetricsApi = metrics
+      nextId: () => String = () => pesticideId.value.toString
   ) =
     val store = new PesticideStore:
       override def getPesticides: GetPesticidesResult                 = readResult
@@ -128,4 +123,4 @@ class PesticideCatalogComponentTest extends munit.FunSuite with TestImplicits:
         refs.added.updateAndGet(_ :+ value).pipe(_ => addResult)
       override def updatePesticide(value: Pesticide): UpdatePesticideResult =
         refs.updated.updateAndGet(_ :+ value).pipe(_ => updateResult)
-    PesticideCatalog.make(using store, () => nextId())(using log, metricsApi)
+    PesticideCatalog.make(using store, () => nextId())(using log, recordingMetrics(refs))

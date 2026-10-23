@@ -1,4 +1,4 @@
-# Code quality checklist — shared
+# Code quality checklist
 
 Gate for every Implementation PR, both stacks. Then load the stack checklist for each surface this PR changes — [`code-quality-frontend.md`](code-quality-frontend.md) for `frontend/**`, [`code-quality-backend.md`](code-quality-backend.md) for `backend/**` — and no others: a frontend-only PR does not read the backend checklist, nor the reverse. `CONTRIBUTING.md` §Testing conventions and `DESIGN-PRINCIPLES.md` §2/§3/§6/§7 own the general rules; the items below live only here.
 
@@ -10,3 +10,4 @@ Gate for every Implementation PR, both stacks. Then load the stack checklist for
 - [ ] Fixtures are declared in semantic scenario order, grouped by the state or use case they describe, not by type.
 - [ ] Values are named for the meaning they establish, not the helper call that produced them (`wateredPlantOperations`, not `watered`).
 - [ ] Test names interpolate the actual domain value under test (e.g. `s"should return ${WateringAttention.Current} ..."`) rather than spelling it out, so a rename can't silently make the name wrong.
+- [ ] Test names use the vocabulary exposed by the tested boundary and identify the behavior they guarantee.

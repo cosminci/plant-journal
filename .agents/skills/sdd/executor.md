@@ -37,7 +37,7 @@ Derive tests from the merged spec's acceptance criteria and enumerated edge case
 
 Implement the approved behavior. Split into multiple PRs on separable seams, or when one PR would exceed a focused review session — never to dodge a gate. Each PR links the merged spec.
 
-Make the tests pass, then run the gates `AGENTS.md` already defines (backend/frontend/pipeline commands, `dagger call verify`, contract drift if you touched tapir endpoints) — do not repeat those commands here, and never weaken a gate to pass one. Self-check against the shared [`checklists/code-quality.md`](checklists/code-quality.md) plus the stack leaf for each surface this PR changes ([`code-quality-frontend.md`](checklists/code-quality-frontend.md) for `frontend/**`, [`code-quality-backend.md`](checklists/code-quality-backend.md) for `backend/**`, and no other), and [`checklists/implementation-completeness.md`](checklists/implementation-completeness.md) (against this PR's own slice) before requesting review.
+Make the tests pass, then run the gates `AGENTS.md` already defines (backend/frontend/pipeline commands, `dagger call verify`, contract drift if you touched tapir endpoints) — do not repeat those commands here, and never weaken a gate to pass one. Self-check against [`checklists/code-quality.md`](checklists/code-quality.md) plus the stack leaf for each surface this PR changes ([`code-quality-frontend.md`](checklists/code-quality-frontend.md) for `frontend/**`, [`code-quality-backend.md`](checklists/code-quality-backend.md) for `backend/**`, and no other), and [`checklists/implementation-completeness.md`](checklists/implementation-completeness.md) (against this PR's own slice) before requesting review.
 
 ## Archive PR
 

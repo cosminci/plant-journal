@@ -1,6 +1,6 @@
 # Code quality checklist — frontend
 
-Load only for a PR that changes `frontend/**`. `CONTRIBUTING.md` §Naming (TS imports, focus ownership) and §Testing conventions (Vitest tiering, 100% coverage as a means) own the general rules, and the shared items live in [`code-quality.md`](code-quality.md); the items below live only here.
+Load only for a PR that changes `frontend/**`. `CONTRIBUTING.md` §Naming (TS imports, focus ownership) and §Testing conventions (Vitest tiering, 100% coverage as a means) own the general rules, and the general items live in [`code-quality.md`](code-quality.md); the items below live only here.
 
 - [ ] Pure logic — validation, derivation, formatting — is an exported plain function unit-tested directly against its branch table; the component test drives rendering and wiring only, not that branch table again.
 - [ ] A control that disables itself renders _why_, associated to it (`aria-describedby`), from the same predicate that drives the disable — never a silent disable, never a second copy of the rule.

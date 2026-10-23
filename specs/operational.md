@@ -23,7 +23,9 @@ Each domain service logs its own outcome as a single line: info for a successful
 | `gardening_journal_substrate_component_usage_total` | Counter | `component` |
 | `gardening_journal_pesticide_applications_total`    | Counter | `pesticide` |
 
-`gardening_journal_plant_info`, `gardening_journal_substrate_component_info`, and `gardening_journal_pesticide_info` (Gauge, always `1`, labeled `<entity>` + `name`) each join a display name onto the id-labeled series above. Every one is rebuilt wholesale from the latest catalog read, not incremented per rename — a Grafana `group_left` join always sees the current name for an id, whereas a `{id, name}` counter/gauge would accumulate one ambiguous stale series per past name.
+`gardening_journal_plant_info`, `gardening_journal_substrate_component_info`, and `gardening_journal_pesticide_info` (Gauge, always `1`, labeled `<entity>` + `name`) each join a display name onto the id-labeled series above. Every one is rebuilt wholesale from the latest catalog read, not incremented per rename — a Grafana `group_left` join always sees the current name for an id, whereas a `{id, name}` counter/gauge would accumulate one ambiguous stale series per past name. Display-name info series are also seeded from the catalog at startup, so they exist before the first read.
+
+Event counters (`*_total`) are process-lifetime counts: they restart at zero with the process and are not reconstructed from persisted journal history. Dashboards should therefore plot them as per-interval increases, not raw totals.
 
 **Connections and storage:**
 

@@ -27,4 +27,8 @@ When executor and reviewer disagree, this file decides — the reviewer only rep
 5. **Implementation PR(s)** — one or more, each within the approved spec. Gate: every gate in `AGENTS.md` exits zero; the shared [`checklists/code-quality.md`](checklists/code-quality.md) plus the stack leaf for each surface this PR changes, and [`checklists/implementation-completeness.md`](checklists/implementation-completeness.md) (this PR's slice), pass.
 6. **Archive + Living Docs PR** — after every Implementation PR has merged; introduces no new product behavior. Gate: every `Doc Sync` entry applied verbatim; [`checklists/implementation-completeness.md`](checklists/implementation-completeness.md) passes against the complete merged change; the spec is moved to `specs/changes/archive/YYYY-MM-DD-<slug>/`.
 
+## Reference spec
+
+Use the Audiobookshelf spec [`list-ingestable-audiobooks/proposal.md`](https://github.com/cosminci/home-automation/pull/1) as the model for every change spec: high signal, a visual domain model, no implementation detail, no filler sections. Match its shape, and omit any section that carries nothing new. Other examples will be added over time, some with diagrams.
+
 Phase detail: [`executor.md`](executor.md). Review protocol: [`reviewer.md`](reviewer.md). Change-spec template: [`templates/change-spec.md`](templates/change-spec.md). `superpowers:brainstorming`, `superpowers:writing-plans`, and `superpowers:test-driven-development` are available when a design or test set is non-obvious.

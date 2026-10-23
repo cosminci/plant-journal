@@ -53,11 +53,17 @@ object Programs:
     val attention = PlantAttentionMonitor.make(config.attention.watering)(using plantStore, SystemClock)
     forkDiscard:
       Iterator.continually { sleep(config.attention.recomputeInterval); attention.refreshAll.discard }.foreach(identity)
+    val plants     = PlantManager.make(using plantStore, substrateStore, UuidIdGenerator, plantLock)
+    val substrates = SubstrateCatalog.make(using substrateStore, UuidIdGenerator)
+    val pesticides = PesticideCatalog.make(using pesticideStore, UuidIdGenerator)
+    plants.warmDisplayNames()
+    substrates.warmDisplayNames()
+    pesticides.warmDisplayNames()
     Programs(
-      PlantManager.make(using plantStore, substrateStore, UuidIdGenerator, plantLock),
+      plants,
       PhotoManager.make(using photoStore, contentStore, photoWriteJournal, thumbnailGenerator, UuidIdGenerator, SystemClock),
       OperationLedger.make(using operationStore, plantStore, substrateStore, pesticideStore, UuidIdGenerator, plantLock),
       attention,
-      SubstrateCatalog.make(using substrateStore, UuidIdGenerator),
-      PesticideCatalog.make(using pesticideStore, UuidIdGenerator)
+      substrates,
+      pesticides
     )

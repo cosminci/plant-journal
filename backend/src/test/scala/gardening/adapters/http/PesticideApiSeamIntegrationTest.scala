@@ -113,6 +113,7 @@ class PesticideApiSeamIntegrationTest extends munit.FunSuite:
       archiveResult: PesticideUpdateResult = PesticideUpdateResult.PesticideMissing
   ) =
     val catalog = new PesticideCatalog:
+      override def warmDisplayNames(): Unit                              = ()
       override def getPesticides: GetPesticidesResult                    = readResult
       override def addPesticide(data: PesticideData): AddPesticideResult =
         refs.added.updateAndGet(_ :+ data).pipe(_ => addResult)

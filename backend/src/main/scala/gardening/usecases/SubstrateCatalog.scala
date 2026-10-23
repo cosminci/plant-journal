@@ -25,6 +25,7 @@ trait SubstrateCatalog:
   def getSubstrateMixes: GetSubstrateMixesResult
   def addSubstrateMix(name: SubstrateMixName, maybeNotes: Option[SubstrateMixNotes], substrate: Substrate): AddSubstrateMixResult
   def deleteSubstrateMix(id: UUID): DeleteSubstrateMixResult
+  def warmDisplayNames(): Unit
 
 object SubstrateCatalog:
 
@@ -42,6 +43,9 @@ object SubstrateCatalog:
         case GetSubstrateComponentsResult.ReadFailed(reason) => log.error("get substrate components", reason)
         case GetSubstrateComponentsResult.Read(found)        =>
           metrics.setComponentDisplayNames(found.map(component => component.id -> component.data.name.value))
+
+    override def warmDisplayNames(): Unit =
+      val _ = getSubstrateComponents
 
     override def addSubstrateComponent(data: SubstrateComponentData): AddSubstrateComponentResult =
       store

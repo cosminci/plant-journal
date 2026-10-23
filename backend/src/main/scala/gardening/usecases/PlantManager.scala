@@ -18,6 +18,7 @@ trait PlantManager:
   def getPlants(status: PlantStatus): GetPlantsResult
   def getArchivedCount: ArchivedCountResult
   def editPlant(plant: PlantId, revise: PlantDetails => PlantDetails): EditPlantResult
+  def warmDisplayNames(): Unit
 
 object PlantManager:
 
@@ -66,6 +67,10 @@ object PlantManager:
       store.getArchivedCount.tap:
         case ArchivedCountResult.ReadFailed(reason) => log.error("get archived count", reason)
         case ArchivedCountResult.Counted(count)     => metrics.setPlantsCount(PlantStatus.Archived, count)
+
+    override def warmDisplayNames(): Unit =
+      val _ = getPlants(PlantStatus.Active)
+      val _ = getPlants(PlantStatus.Archived)
 
     private def displayName(plant: Plant) =
       plant.id -> plant.details.maybeNickname.map(_.value).getOrElse(plant.details.species.value)

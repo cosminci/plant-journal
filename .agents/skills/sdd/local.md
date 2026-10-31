@@ -7,4 +7,4 @@
 - Every change passes affected `dagger call verify`; use all when impact is uncertain.
 - Component backend/frontend/pipeline gates and 100% coverage remain enforced by configuration.
 - NAS refresh preserves the previous local journal on failure; replacement requires the launcher's confirmation.
-- Household garden notes under `.local/garden-plan/` and all local credentials remain untracked.
+- Never commit anything under `.local/`; household garden notes stay in `.local/garden-plan/`.

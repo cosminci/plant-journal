@@ -73,7 +73,7 @@ The database file path, photos directory, and static assets directory are fixed 
 - A writable SQLite file at `/data/gardening.db`. A failed connection or migration prevents startup; back up data before recreating a database migrated with superseded versions.
 - A writable photo content directory, separate from the SQLite file: the NAS array in production, a local directory in local development. Photo volume never grows the SQLite file or its backup path.
 - Built static assets served from `/app/static` share the API origin; missing assets return not found.
-- [Local development](../CONTRIBUTING.md#local-development) binds both unauthenticated services to workstation loopback. Its journal persists locally; edits never sync back to the NAS. `--refresh` pulls only the SQLite journal from the NAS; local photo content is separate and is never seeded or synced by it.
+- [Local development](../README.md#local-development) binds both unauthenticated services to workstation loopback. Its journal persists locally; edits never sync back to the NAS. `--refresh` pulls only the SQLite journal from the NAS; local photo content is separate and is never seeded or synced by it.
 - Optional SSH refresh uses SQLite's online backup for a consistent snapshot without stopping NAS writes. After validation, atomic replacement leaves either the old or new complete journal on failure or interruption; abandoned snapshots are removed on the next start.
 - `GET /metrics` (Prometheus exposition, see [Metrics](#metrics) above) is always exposed; nothing in the app depends on anything scraping it, and startup/behavior are identical whether or not a scraper exists. The same Victoria Metrics/Grafana pair can run standalone for local development, pointed at the local backend's `/metrics`, with no code or config change to the app itself.
 
@@ -82,7 +82,7 @@ The database file path, photos directory, and static assets directory are fixed 
 Single Docker container on the household NAS (Unraid) — no orchestration, no replicas — installed from the committed [Unraid template](../unraid/plant-journal.xml).
 
 - **Image** — public `ghcr.io/cosminci/plant-journal`; restarts unless stopped; `json-file` logs capped at 10MB × 5 files.
-- **Network** — the configured WebUI port maps to the container's `8080`; LAN and Tailscale only, never the public router (see [Exposure](../CONTRIBUTING.md#working-in-the-repo)).
+- **Network** — the configured WebUI port maps to the container's `8080`; LAN and Tailscale only, never the public router (see [Exposure](../SECURITY.md)).
 - **Data** — the SQLite journal lives under the bind-mounted `/data` (default `/mnt/user/appdata/plant-journal`), owned by UID/GID `1000:1000` and included in Unraid's periodic Appdata Backup.
 
 Step-by-step install/update/recovery is the operator runbook in [`unraid/README.md`](../unraid/README.md); publish/deploy mechanics are owned by [`ci/specs/operational.md`](../ci/specs/operational.md) — this section only records where and how the running service is configured, not how to change it.

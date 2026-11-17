@@ -2,6 +2,7 @@ name: build
 
 on:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -44,6 +45,11 @@ jobs:
         run: |
           npm ci --prefix .dagger --no-audit --no-fund
           dagger develop
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            npm --prefix .dagger run verify
+            dagger call verify --all
+            exit 0
+          fi
           base="origin/$GITHUB_BASE_REF"
           components=$(dagger call changed --base="$base")
           if [[ ",$components," == *,pipeline,* ]]; then

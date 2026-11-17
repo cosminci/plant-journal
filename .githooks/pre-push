@@ -14,5 +14,4 @@ run() {
   fi
 }
 
-python3 scripts/configure_dagger_engine.py
-run dagger call verify
+run bash scripts/with_dagger_engine dagger call verify

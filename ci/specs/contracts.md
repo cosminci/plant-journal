@@ -9,7 +9,8 @@ The contract with the external CI runner (GitHub Actions) is the `dagger call` i
 | Invocation | Caller | Arguments |
 | --- | --- | --- |
 | `changed` | `build.yml`, every PR | `--base` (defaults to merge-base with `origin/main`). |
-| `verify` | `build.yml` (affected only); `release.yml` (`--all`, before a release) | `--base`, or `--all`. |
+| `verify`, or `verify-cached` with the [Actions snapshot](operational.md#actions-cache) | `build.yml` | `--base` for pull requests; `--all` for main pushes and manual runs. |
+| `verify-cached` | `release.yml`, before a release | `--all`, with restore-only trusted main state. |
 | `release-version` | `release.yml`, manual dispatch | none — generates a UTC calendar-timestamp tag from wall-clock time, once per dispatched release. |
 | `publish` | `release.yml`, manual dispatch | `--tag`, `--token` (a Dagger Secret), `--registry-user`. |
 

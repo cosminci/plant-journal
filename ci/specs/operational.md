@@ -4,11 +4,22 @@
 
 ## Engine storage
 
-Before the first local Dagger command, run `python3 scripts/configure_dagger_engine.py`; the pre-push hook and build/publish workflows run it automatically. The installer writes the [retention policy](../../scripts/dagger-engine.json) under `$XDG_CONFIG_HOME/dagger/engine.json` when set, otherwise under `~/Library/Application Support/dagger/engine.json` on macOS or `~/.config/dagger/engine.json` on Linux; this is a shared user configuration, and unrelated settings are preserved.
+```mermaid
+flowchart LR
+  Entry["Pre-push / build / release entrypoint"] --> Space["Reserve 5 GiB of initial host free space"]
+  Space --> Disk["Fixed-size state filesystem<br/>At most 20 GiB"]
+  Disk --> Snapshots["Require OverlayFS snapshots"]
+  Snapshots --> Command["Run existing gates / release"]
+  Command --> Cleanup["Stop command group / remove owned engine and state"]
+```
 
-The policy makes entries unused for 72 hours eligible for removal and gives each engine a 20 GB GC budget, a 2 GB reserve, a 5 GB sweep target and a 50 GB free-space target on the engine's filesystem. These are garbage-collection thresholds, not disk quotas or a guarantee of host free space: active references can exceed the budget, age cleanup needs a GC pass, and stopped engines cannot collect their caches.
+The launcher requires capacity for at least 8 GiB of engine state. A full state filesystem fails the command rather than using more host storage; requiring OverlayFS prevents full-filesystem snapshot copies.
 
-Dagger mounts this file when it creates a default engine and reads it at engine startup. An existing engine without the mount must be recreated after confirming it is idle; a mounted engine needs a restart after a policy change. For a manually created engine, mount the same file read-only at `/etc/dagger/engine.json`, keep its name explicit in the runner override, and remove that exact disposable container and its own cache volume when the experiment ends.
+For direct commands, prefix Dagger with `python3 scripts/with_dagger_engine.py`. Pre-push verification and build/publish workflows provision the bounded engine automatically.
+
+Failures print engine diagnostics before cleanup. After an uncatchable termination, inspect `plant-journal-verification` before removing it and its `plant-journal-verification-state` volume; do not remove an active invocation. Concurrent invocations reject the occupied name instead of allocating another disk.
+
+The [retention installer](../../scripts/configure_dagger_engine.py) remains a safeguard for operator-managed default engines. It preserves unrelated user settings and installs the [age/size policy](../../scripts/dagger-engine.json) in Dagger's native configuration directory; existing engines need recreation or restart to read it. Garbage collection cannot reclaim active snapshots and does not provide the bounded launcher's disk quota.
 
 ## Versioning & release provenance
 

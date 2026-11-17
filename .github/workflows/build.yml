@@ -36,6 +36,11 @@ jobs:
       - name: Configure Dagger cache retention
         run: python3 scripts/configure_dagger_engine.py
 
+      - name: Free unused hosted-runner Android SDK
+        run: |
+          sudo rm -rf -- /usr/local/lib/android
+          df -h .
+
       - name: Install Dagger
         run: |
           cd "$RUNNER_TEMP"
@@ -43,6 +48,7 @@ jobs:
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Verify changed components
+        shell: python3 scripts/with_dagger_engine.py bash --noprofile --norc -euo pipefail {0}
         run: |
           npm ci --prefix .dagger --no-audit --no-fund
           dagger develop

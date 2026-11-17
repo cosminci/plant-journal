@@ -104,7 +104,7 @@ class DaggerEngineConfigurationTest(unittest.TestCase):
                 source = (ROOT / ".github/workflows" / workflow).read_text()
                 self.assertLess(source.index(setup), source.index("dagger develop"))
         hook = (ROOT / ".githooks/pre-push").read_text()
-        self.assertLess(hook.index(setup), hook.index("run dagger call verify"))
+        self.assertLess(hook.index(setup), hook.index("run python3 scripts/with_dagger_engine.py dagger call verify"))
 
     def configure(self, config_home):
         return subprocess.run(

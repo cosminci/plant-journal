@@ -15,4 +15,4 @@ run() {
 }
 
 python3 scripts/configure_dagger_engine.py
-run dagger call verify
+run python3 scripts/with_dagger_engine.py dagger call verify

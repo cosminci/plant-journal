@@ -9,6 +9,7 @@ import { runtimeImage } from "./hooks/image";
 import { localSetupCheck, pipelineCheck } from "./hooks/pipeline";
 import * as Selection from "./selection";
 import { assertReleaseVersion, deriveVersion, releaseVersion } from "./version";
+import { cacheSnapshot, restoreCache } from "./hooks/cache";
 
 /** CI pipeline for the plant-journal app. One composable module over three components — backend,
  * frontend, and the pipeline itself — plus the contract that binds the app halves. Verifying and
@@ -17,6 +18,18 @@ import { assertReleaseVersion, deriveVersion, releaseVersion } from "./version";
  */
 @object()
 export class Gardening {
+  @func({ cache: "never" })
+  async verifyCached(
+    @argument({ defaultPath: "/", ignore: WORKSPACE_IGNORE }) source: Dagger.Directory,
+    state: Dagger.Directory,
+    base = "",
+    all = false,
+  ): Promise<Dagger.Directory> {
+    await restoreCache(state);
+    await this.verify(source, base, all);
+    return cacheSnapshot();
+  }
+
   /** Maps changed paths (vs `base`; default merge-base with origin/main) to affected components. */
   @func()
   async changed(

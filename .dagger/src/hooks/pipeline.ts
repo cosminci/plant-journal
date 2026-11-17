@@ -21,6 +21,8 @@ export function localSetupCheck(source: Directory): Container {
     .container()
     .from(PYTHON_IMAGE)
     .withDirectory("/app/scripts", source.directory("scripts"))
+    .withDirectory("/app/.github/workflows", source.directory(".github/workflows"))
+    .withDirectory("/app/.githooks", source.directory(".githooks"))
     .withWorkdir("/app")
     .withExec(["python3", "-m", "unittest", "discover", "-s", "scripts", "-p", "test_*.py"]);
 }

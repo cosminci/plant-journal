@@ -24,7 +24,7 @@
     "@solidjs/testing-library": "^0.8.10",
     "@testing-library/jest-dom": "^7.0.1",
     "@types/node": "^26.6.5",
-    "@vitest/coverage-v8": "^5.0.2",
+    "@vitest/coverage-v8": "^5.1.0",
     "dependency-cruiser": "^18.7.2",
     "eslint": "^10.14.0",
     "eslint-plugin-solid": "^0.19.0",

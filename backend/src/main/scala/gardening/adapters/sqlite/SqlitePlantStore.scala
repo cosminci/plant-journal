@@ -9,6 +9,8 @@ import gardening.domain.plants.*
 import gardening.ports.{PlantStore, PlantAttentionStore}
 import io.circe.parser.decode
 import io.circe.syntax.*
+import io.github.iltotore.iron.*
+import io.github.iltotore.iron.constraint.numeric.GreaterEqual
 import java.time.Instant
 import scala.util.Try
 
@@ -43,8 +45,14 @@ object SqlitePlantStore:
     override def getArchivedCount: ArchivedCountResult =
       try
         connect(transactor)(sql"select count(*) from plant where status = 'Archived'".query[Long].run().headOption) match
-          case Some(count) => ArchivedCountResult.Counted(count)
-          // An aggregate without GROUP BY always returns exactly one row.
+          case Some(count) =>
+            count.refineEither[GreaterEqual[0L]] match
+              case Right(checked) => ArchivedCountResult.Counted(checked)
+              // SQLite COUNT(*) cannot return a negative number.
+              // $COVERAGE-OFF$
+              case Left(message) => ArchivedCountResult.ReadFailed(DatabaseCorruption(IllegalStateException(message)))
+              // $COVERAGE-ON$
+          // COUNT(*) without GROUP BY always returns exactly one row.
           // $COVERAGE-OFF$
           case None => ArchivedCountResult.ReadFailed(DatabaseCorruption(IllegalStateException("archived plant count query returned no row")))
           // $COVERAGE-ON$

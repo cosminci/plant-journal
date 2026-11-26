@@ -55,6 +55,10 @@ object OperationApi:
 
   final private case class LogOperationRequest(plantId: String, date: Instant, details: OperationDetails)
 
+  private enum OperationDateRangeBody:
+    case Empty
+    case Recorded(first: Instant, last: Instant)
+
   private val operationEndpoint     = endpoint.errorOut(ApiError.generic)
   private val getOperationsEndpoint =
     operationEndpoint.get.in("operations").in(query[String]("plantId").validate(Validator.minLength(1)))
@@ -63,7 +67,7 @@ object OperationApi:
       .out(jsonBody[OperationPage]).summary("List a bounded page of plant operations")
   private val getOperationDateRangeEndpoint =
     endpoint.get.in("operations" / "date-range").in(query[String]("plantId").validate(Validator.minLength(1))).errorOut(plantReadErrors)
-      .out(jsonBody[OperationDateRange]).summary("Read the first and last recorded operation dates")
+      .out(jsonBody[OperationDateRangeBody]).summary("Read the first and last recorded operation dates")
   private val logOperationEndpoint =
     endpoint.post.in("operations").in(jsonBody[LogOperationRequest]).errorOut(logOperationErrors)
       .out(statusCode(StatusCode.Created)).out(jsonBody[LoggedOperation]).summary("Log a plant operation")
@@ -85,7 +89,9 @@ object OperationApi:
           case _: GetOperationsResult.ReadFailed => (StatusCode.InternalServerError, ApiError("journal could not be read")).asLeft,
       getOperationDateRangeEndpoint.handle: plantId =>
         operations.getOperationDateRange(PlantId(plantId)) match
-          case GetOperationDateRangeResult.Read(range)   => range.asRight
+          case GetOperationDateRangeResult.Read(OperationDateRange.Empty)                 => OperationDateRangeBody.Empty.asRight
+          case GetOperationDateRangeResult.Read(OperationDateRange.Recorded(first, last)) =>
+            OperationDateRangeBody.Recorded(first, last).asRight
           case GetOperationDateRangeResult.PlantMissing  => plantMissing.asLeft
           case _: GetOperationDateRangeResult.ReadFailed => ApiError("operation dates could not be read").asLeft,
       logOperationEndpoint.handle: request =>
@@ -141,13 +147,15 @@ object OperationApi:
     Decoder.decodeString.emap(value => PesticideId.parse(value).toRight(s"invalid pesticide id: $value")),
     Encoder.encodeString.contramap(_.value.toString)
   )
-  private given Encoder[Set[ActionType]]            = Encoder.encodeList[ActionType].contramap(_.toList.sortBy(_.toString))
-  private given Codec.AsObject[OperationDetails]    = ConfiguredCodec.derived
-  private given Codec.AsObject[OperationDateRange]  = ConfiguredCodec.derived
-  private given Codec.AsObject[LogOperationRequest] = ConfiguredCodec.derived
+  private given Encoder[Set[ActionType]]               = Encoder.encodeList[ActionType].contramap(_.toList.sortBy(_.toString))
+  private given Codec.AsObject[OperationDetails]       = ConfiguredCodec.derived
+  private given Codec.AsObject[OperationDateRangeBody] = ConfiguredCodec.derived
+  private given Codec.AsObject[LogOperationRequest]    = ConfiguredCodec.derived
 
-  private given Schema[ActionType]    = Codecs.enumSchema[ActionType]
-  private given Schema[MoistureLevel] = Codecs.enumSchema[MoistureLevel]
+  private given Schema[ActionType]             = Codecs.enumSchema[ActionType]
+  private given Schema[MoistureLevel]          = Codecs.enumSchema[MoistureLevel]
+  private given Schema[OperationDateRangeBody] =
+    Schema.derived[OperationDateRangeBody].name(Schema.SName("gardening.domain.operations.OperationDateRange"))
 
   private type OperationText = OperationId | Note
   private given [A <: OperationText]: Schema[A] = Schema.string

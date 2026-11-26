@@ -86,7 +86,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       val plantStore = resource.plantStore
       val result     = plantStore.getArchivedCount
 
-      assertEquals(result, ArchivedCountResult.Counted(0))
+      assertEquals(result, ArchivedCountResult.Counted(0L))
 
   test("should count archived plants without decoding their details"):
     Using.resource(storeResource): resource =>
@@ -99,7 +99,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       val countResult = plantStore.getArchivedCount
       val plantResult = plantStore.getPlants(PlantStatus.Active)
 
-      assertEquals(countResult, ArchivedCountResult.Counted(1))
+      assertEquals(countResult, ArchivedCountResult.Counted(1L))
       assertEquals(plantResult, GetPlantsResult.Read(Vector(Plant(PlantId("active"), defaultPlantDetails))))
 
   test("should persist an active plant's archived status and retain readable operation history"):
@@ -129,7 +129,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       staleUpdate match
         case UpdatePlantResult.UpdateFailed(_) => ()
         case other                             => fail(s"expected UpdateFailed, got $other")
-      assertEquals(archivedCount, ArchivedCountResult.Counted(1))
+      assertEquals(archivedCount, ArchivedCountResult.Counted(1L))
       assertEquals(history, expectedHistory)
       assertEquals(activePlants, GetPlantsResult.Read(Vector.empty))
       assertEquals(plantStore.getPlant(plantId), GetPlantResult.Read(archivedPlant))

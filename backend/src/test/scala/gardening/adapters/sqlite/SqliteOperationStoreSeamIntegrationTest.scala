@@ -113,11 +113,10 @@ class SqliteOperationStoreSeamIntegrationTest extends FunSuite:
       val actual  = operationStore.getOperationDateRange(archivedId)
       val missing = operationStore.getOperationDateRange(PlantId("missing"))
 
-      val expected = GetOperationDateRangeResult.Read(OperationDateRange.Recorded(earliest, latest))
       assertEquals(logged, operations.map(operation => AddOperationResult.Logged(operation.id)))
       assertEquals(otherLog, AddOperationResult.Logged(otherOperation.id))
       assertEquals(archived, UpdatePlantResult.Updated)
-      assertEquals(actual, expected)
+      assertRecordedRange(actual, first = earliest, last = latest)
       assertEquals(missing, GetOperationDateRangeResult.PlantMissing)
 
   test("should return an empty date range for a plant without operations"):
@@ -141,10 +140,9 @@ class SqliteOperationStoreSeamIntegrationTest extends FunSuite:
       val archived = plantStore.updatePlant(Plant(single.plantId, defaultPlantDetails.copy(status = PlantStatus.Archived)))
       val actual   = operationStore.getOperationDateRange(single.plantId)
 
-      val expected = GetOperationDateRangeResult.Read(OperationDateRange.Recorded(date, date))
       assertEquals(logged, AddOperationResult.Logged(single.id))
       assertEquals(archived, UpdatePlantResult.Updated)
-      assertEquals(actual, expected)
+      assertRecordedRange(actual, first = date, last = date)
 
   test("should order archived care dates by instant across timestamp precisions"):
     Using.resource(storeResource): resource =>
@@ -163,11 +161,18 @@ class SqliteOperationStoreSeamIntegrationTest extends FunSuite:
       execute(dataSource, "update operation set date = '2026-01-01T00:00:00.001Z' where id = ?", last.id.value)
       val actual = operationStore.getOperationDateRange(plantId)
 
-      val expected = OperationDateRange.Recorded(Instant.parse("2026-01-01T00:00:00Z"), Instant.parse("2026-01-01T00:00:00.001Z"))
+      val earliest = Instant.parse("2026-01-01T00:00:00Z")
+      val latest   = Instant.parse("2026-01-01T00:00:00.001Z")
       assertEquals(firstLog, AddOperationResult.Logged(first.id))
       assertEquals(lastLog, AddOperationResult.Logged(last.id))
       assertEquals(archived, UpdatePlantResult.Updated)
-      assertEquals(actual, GetOperationDateRangeResult.Read(expected))
+      assertRecordedRange(actual, first = earliest, last = latest)
+
+  private def assertRecordedRange(actual: GetOperationDateRangeResult, first: Instant, last: Instant): Unit =
+    actual match
+      case GetOperationDateRangeResult.Read(OperationDateRange.Recorded(earliest, latest)) =>
+        assertEquals((earliest, latest), (first, last))
+      case other => fail(s"Expected a recorded range, got $other")
 
   test("should report a malformed operation date instead of presenting a partial range"):
     Using.resource(storeResource): resource =>

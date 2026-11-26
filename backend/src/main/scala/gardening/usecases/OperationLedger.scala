@@ -155,7 +155,7 @@ object OperationLedger:
           case GetPesticidesResult.Read(pesticides) =>
             val known   = pesticides.filter(_.status === PesticideStatus.Active).map(_.id).toSet
             val missing = selected.diff(known)
-            Either.cond(missing.isEmpty, (), unknownPesticides(missing))
+            Either.cond(missing.isEmpty, right = (), unknownPesticides(missing))
           case GetPesticidesResult.ReadFailed(reason) => reason.asLeft
 
     private def validateSubstrateComponents(substrate: Substrate) =
@@ -163,7 +163,7 @@ object OperationLedger:
         case GetSubstrateComponentsResult.Read(components) =>
           val known   = components.filter(_.status === SubstrateComponentStatus.Active).map(_.id).toSet
           val missing = substrate.parts.map(_.componentId).toSet.diff(known)
-          Either.cond(missing.isEmpty, (), unknownSubstrateComponents(missing))
+          Either.cond(missing.isEmpty, right = (), unknownSubstrateComponents(missing))
         case GetSubstrateComponentsResult.ReadFailed(reason) => reason.asLeft
 
     private def unknownPesticides(ids: Set[PesticideId]) =

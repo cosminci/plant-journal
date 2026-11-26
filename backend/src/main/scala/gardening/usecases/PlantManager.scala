@@ -99,7 +99,7 @@ object PlantManager:
           EditPlantResult.CatalogReadFailed(reason).asLeft.tap(_ => log.error("edit plant", reason))
         case GetSubstrateComponentsResult.Read(components) =>
           val known = components.filter(_.status === SubstrateComponentStatus.Active).map(_.id).toSet
-          Either.cond(substrate.parts.forall(part => known.contains(part.componentId)), (), EditPlantResult.UnknownComponent)
+          Either.cond(substrate.parts.forall(part => known.contains(part.componentId)), right = (), EditPlantResult.UnknownComponent)
 
     private def persistEdit(plant: Plant): Either[EditPlantResult, Plant] =
       store.updatePlant(plant) match

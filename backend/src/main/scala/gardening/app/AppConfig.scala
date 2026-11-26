@@ -44,7 +44,7 @@ object AppConfig:
   def load(): AppConfig = ConfigSource.default.at("gardening").loadOrThrow[AppConfig]
 
   private def check(condition: Boolean, description: => String): Either[FailureReason, Unit] =
-    Either.cond(condition, (), InvalidConfig(description))
+    Either.cond(condition, right = (), InvalidConfig(description))
 
   private def checkPositive(field: String, value: FiniteDuration): Either[FailureReason, Unit] =
     check(value > Duration.Zero, s"$field ($value) must be greater than zero")

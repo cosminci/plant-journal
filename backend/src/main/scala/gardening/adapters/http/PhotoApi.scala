@@ -91,7 +91,7 @@ object PhotoApi:
     addPhotoEndpoint.handle: (plantId, upload) =>
       try
         for
-          _         <- Either.cond(upload.file.body.length() <= maxUploadSize.toBytes.toLong, (), photoTooLarge)
+          _         <- Either.cond(upload.file.body.length() <= maxUploadSize.toBytes.toLong, right = (), photoTooLarge)
           bytes     <- Files.readAllBytes(upload.file.body.toPath).asRight
           mediaType <- sniffPhotoMediaType(bytes).toRight(unsupportedType)
           photo     <- photos.addPhoto(PlantId(plantId), PhotoContent(ByteVector(bytes), mediaType), upload.idempotencyKey.body).toEither

@@ -29,10 +29,8 @@ class PhotoThumbnailGeneratorTest extends FunSuite:
         case ThumbnailDerivationResult.Derived(thumbnail) =>
           val actualBytes = thumbnail.bytes.length
           assertEquals(thumbnail.mediaType, PhotoMediaType.Jpeg)
-          assert(
-            actualBytes <= maxThumbnailSize.toBytes,
-            s"expected <= ${maxThumbnailSize}, got $actualBytes bytes"
-          )
+          val maxBytes = maxThumbnailSize.toBytes
+          assert(actualBytes <= maxBytes, s"expected <= $maxBytes bytes, got $actualBytes bytes")
         case ThumbnailDerivationResult.DerivationFailed(reason) => fail(s"expected a derived thumbnail, got $reason")
 
   test("should not enlarge a source already smaller than every thumbnail size in the ladder"):

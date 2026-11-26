@@ -227,12 +227,15 @@ class SqliteOperationStoreSeamIntegrationTest extends FunSuite:
       val dataSource = resource.dataSource
       seedPlant(dataSource, id = "p1")
 
-      val unknownKind = intercept[java.sql.SQLException]:
-        execute(dataSource, insertQuery, "unknown-kind", "p1", date.toString, "Unknown", "{}")
-      val malformedCarePayload = intercept[java.sql.SQLException]:
-        execute(dataSource, insertQuery, "malformed-payload", "p1", date.toString, "Care", "not-json")
-      val malformedRepotPayload = intercept[java.sql.SQLException]:
-        execute(dataSource, insertQuery, "malformed-repot", "p1", date.plusNanos(1).toString, "Repot", "not-json")
+      val recordedAt = date.toString
+      val repotAt    = date.plusNanos(1).toString
+
+      def insertOperation(id: String, at: String, kind: String, payload: String): Unit =
+        execute(dataSource, insertQuery, id, "p1", at, kind, payload)
+
+      val unknownKind           = intercept[java.sql.SQLException](insertOperation("unknown-kind", recordedAt, "Unknown", "{}"))
+      val malformedCarePayload  = intercept[java.sql.SQLException](insertOperation("malformed-payload", recordedAt, "Care", "not-json"))
+      val malformedRepotPayload = intercept[java.sql.SQLException](insertOperation("malformed-repot", repotAt, "Repot", "not-json"))
 
       assert(unknownKind.getMessage.contains("CHECK constraint failed"))
       assert(malformedCarePayload.getMessage.contains("CHECK constraint failed"))
@@ -328,10 +331,9 @@ class SqliteOperationStoreSeamIntegrationTest extends FunSuite:
       seedPlant(dataSource, id = "p1")
       val laterRepot   = OperationDetails.Repot(lecaSubstrate, none)
       val earlierRepot = OperationDetails.Repot(sand3to5Substrate, none)
-      assertEquals(
-        operationStore.logRepot(OperationId("o1"), PlantId("p1"), date.plusSeconds(60), laterRepot),
-        AddOperationResult.Logged(OperationId("o1"))
-      )
+      val laterRepotId = OperationId("o1")
+      val laterResult  = operationStore.logRepot(laterRepotId, PlantId("p1"), date.plusSeconds(60), laterRepot)
+      assertEquals(laterResult, AddOperationResult.Logged(laterRepotId))
 
       val result = operationStore.logRepot(OperationId("o2"), PlantId("p1"), date, earlierRepot)
       val plant  = plantStore.getPlant(PlantId("p1"))

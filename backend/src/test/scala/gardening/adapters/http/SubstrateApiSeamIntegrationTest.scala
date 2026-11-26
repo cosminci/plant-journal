@@ -73,9 +73,9 @@ class SubstrateApiSeamIntegrationTest extends munit.FunSuite:
     val server = buildServer(refs, archiveResult = SubstrateComponentUpdateResult.Updated(archivedComponent))
     val url    = s"/substrates/components/${componentId.value}/archive"
 
-    val archived        = post(url, "", server)
-    val invalid         = post("/substrates/components/not-a-uuid/archive", "", server)
-    val missing         = post(url, "", buildServer())
+    val archived        = post(url, body = "", server)
+    val invalid         = post("/substrates/components/not-a-uuid/archive", body = "", server)
+    val missing         = post(url, body = "", buildServer())
     val alreadyArchived = post(url, body = "", buildServer(archiveResult = SubstrateComponentUpdateResult.ComponentArchived))
 
     assertResponse(archived, StatusCode.Ok, archivedComponentJson)
@@ -96,7 +96,7 @@ class SubstrateApiSeamIntegrationTest extends munit.FunSuite:
     val listed   = get("/substrates/components", server)
     val added    = post("/substrates/components", componentDataJson, server)
     val edited   = put(s"/substrates/components/${componentId.value}", componentDataJson, server)
-    val archived = post(s"/substrates/components/${componentId.value}/archive", "", server)
+    val archived = post(s"/substrates/components/${componentId.value}/archive", body = "", server)
 
     assertResponse(listed, StatusCode.InternalServerError, componentReadError)
     assertResponse(added, StatusCode.InternalServerError, componentWriteError)

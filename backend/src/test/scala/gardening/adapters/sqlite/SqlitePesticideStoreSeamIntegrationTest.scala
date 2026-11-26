@@ -59,9 +59,9 @@ class SqlitePesticideStoreSeamIntegrationTest extends munit.FunSuite:
       assertEquals(actualError, "invalid pesticide id: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
 
     Using.resource(storeResource): resource =>
-      val _        = resource.store.addPesticide(pesticide)
-      val rejected = intercept[java.sql.SQLException]:
-        execute(resource.dataSource, "update pesticide set type = 'Unknown' where name = 'Sulfur'")
+      val _                 = resource.store.addPesticide(pesticide)
+      val invalidTypeUpdate = "update pesticide set type = 'Unknown' where name = 'Sulfur'"
+      val rejected          = intercept[java.sql.SQLException](execute(resource.dataSource, invalidTypeUpdate))
 
       assert(rejected.getMessage.contains("CHECK constraint failed"))
 

@@ -113,10 +113,9 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
       Pesticide(neemOilId, neemOilData, status = PesticideStatus.Active)
     )
 
-    assertEquals(
-      buildLedger(pesticideReadResult = GetPesticidesResult.Read(pesticides)).logOperation(plant.id, date, selectedCare),
-      LogOperationResult.Logged(OperationId("id-1"))
-    )
+    val ledger = buildLedger(pesticideReadResult = GetPesticidesResult.Read(pesticides))
+    val result = ledger.logOperation(plant.id, date, selectedCare)
+    assertEquals(result, LogOperationResult.Logged(OperationId("id-1")))
 
   test("should reject logging a care operation that references unknown or archived pesticides, without recording it"):
     val selectedCare       = care.copy(pesticides = Set(vertabId, neemOilId))
@@ -233,17 +232,15 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
     assertEquals(refs.updatedOperations.get(), Vector.empty)
 
   test("should preserve an unexpected updateOperation outcome when editing"):
-    assertEquals(
-      buildLedger(updateOperationResult = EditOperationResult.OperationMissing).editOperation(operation.id, care),
-      EditOperationResult.OperationMissing
-    )
+    val ledger = buildLedger(updateOperationResult = EditOperationResult.OperationMissing)
+    val result = ledger.editOperation(operation.id, care)
+    assertEquals(result, EditOperationResult.OperationMissing)
 
   test("should surface an edit failure from the store"):
-    val cause = RuntimeException("store down")
-    assertEquals(
-      buildLedger(updateOperationResult = EditOperationResult.EditFailed(cause)).editOperation(operation.id, care),
-      EditOperationResult.EditFailed(cause)
-    )
+    val cause  = RuntimeException("store down")
+    val ledger = buildLedger(updateOperationResult = EditOperationResult.EditFailed(cause))
+    val result = ledger.editOperation(operation.id, care)
+    assertEquals(result, EditOperationResult.EditFailed(cause))
 
   test("should delete a care operation"):
     val refs   = Refs()

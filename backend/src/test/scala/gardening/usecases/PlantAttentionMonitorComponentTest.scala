@@ -238,7 +238,10 @@ class PlantAttentionMonitorComponentTest extends munit.FunSuite with TestImplici
     val refreshed         = monitor.refreshAll
     val currentProjection = monitor.current
 
-    val remainingAttention = PlantAttention(remainingPlant.id, WateringAttention.Unavailable(0, none))
+    val remainingAttention = PlantAttention(
+      remainingPlant.id,
+      WateringAttention.Unavailable(sampleCount = 0, maybeElapsed = none)
+    )
     val expectedProjection = AttentionProjection(referenceTime, Vector(remainingAttention))
 
     assertEquals(initialProjection.plants.map(_.plantId), Vector(plant.id, remainingPlant.id))

@@ -69,10 +69,14 @@ class PesticideApiSeamIntegrationTest extends munit.FunSuite:
     val refs   = Refs()
     val server = buildServer(refs, archiveResult = PesticideUpdateResult.Updated(archivedPesticide))
 
-    val archived        = post(s"/pesticides/${pesticideId.value}/archive", "", server)
-    val invalid         = post("/pesticides/not-a-uuid/archive", "", server)
-    val missing         = post(s"/pesticides/${pesticideId.value}/archive", "", buildServer())
-    val alreadyArchived = post(s"/pesticides/${pesticideId.value}/archive", "", buildServer(archiveResult = PesticideUpdateResult.PesticideArchived))
+    val archived        = post(s"/pesticides/${pesticideId.value}/archive", body = "", server)
+    val invalid         = post("/pesticides/not-a-uuid/archive", body = "", server)
+    val missing         = post(s"/pesticides/${pesticideId.value}/archive", body = "", buildServer())
+    val alreadyArchived = post(
+      s"/pesticides/${pesticideId.value}/archive",
+      body = "",
+      buildServer(archiveResult = PesticideUpdateResult.PesticideArchived)
+    )
 
     assertResponse(archived, StatusCode.Ok, archivedPesticideJson)
     assertResponse(invalid, StatusCode.BadRequest, """{"message":"invalid pesticide id"}""")
@@ -92,7 +96,7 @@ class PesticideApiSeamIntegrationTest extends munit.FunSuite:
     val listed   = get("/pesticides", server)
     val added    = post("/pesticides", pesticideDataJson, server)
     val edited   = put(s"/pesticides/${pesticideId.value}", pesticideDataJson, server)
-    val archived = post(s"/pesticides/${pesticideId.value}/archive", "", server)
+    val archived = post(s"/pesticides/${pesticideId.value}/archive", body = "", server)
 
     assertResponse(listed, StatusCode.InternalServerError, catalogReadError)
     assertResponse(added, StatusCode.InternalServerError, catalogWriteError)

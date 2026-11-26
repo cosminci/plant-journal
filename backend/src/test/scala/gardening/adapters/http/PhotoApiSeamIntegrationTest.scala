@@ -80,32 +80,25 @@ class PhotoApiSeamIntegrationTest extends munit.FunSuite:
         val webpResponse = uploadPhoto(plantId.value, webpBytes, "image/webp")(binding.port)
         assertEquals(webpResponse.code, StatusCode.UnsupportedMediaType)
 
-        val bmpResponse = uploadPhoto(plantId.value, Array[Byte](1, 2), "image/bmp")(binding.port)
-        assertEquals(
-          bmpResponse.code                -> jsonBody(bmpResponse),
+        val bmpResponse         = uploadPhoto(plantId.value, Array[Byte](1, 2), "image/bmp")(binding.port)
+        val expectedUnsupported =
           StatusCode.UnsupportedMediaType -> json("""{"message":"unsupported media type: only image/jpeg and image/png are accepted"}""")
-        )
+        assertEquals(bmpResponse.code -> jsonBody(bmpResponse), expectedUnsupported)
 
         val oversized         = Array.fill(maxUploadSize.toBytes.toInt + 1)(0.toByte)
         val oversizedResponse = uploadPhoto(plantId.value, oversized, "image/jpeg")(binding.port)
-        assertEquals(
-          oversizedResponse.code     -> jsonBody(oversizedResponse),
-          StatusCode.PayloadTooLarge -> json("""{"message":"photo exceeds the maximum upload size"}""")
-        )
+        val expectedOversized = StatusCode.PayloadTooLarge -> json("""{"message":"photo exceeds the maximum upload size"}""")
+        assertEquals(oversizedResponse.code -> jsonBody(oversizedResponse), expectedOversized)
 
         addPhotoResultRef.set(AddPhotoResult.PlantMissing)
         val missingPlantResponse = uploadPhoto(plantId.value, jpegBytes, "image/jpeg")(binding.port)
-        assertEquals(
-          missingPlantResponse.code -> jsonBody(missingPlantResponse),
-          StatusCode.NotFound       -> json("""{"message":"plant not found"}""")
-        )
+        val expectedMissingPlant = StatusCode.NotFound -> json("""{"message":"plant not found"}""")
+        assertEquals(missingPlantResponse.code -> jsonBody(missingPlantResponse), expectedMissingPlant)
 
         addPhotoResultRef.set(AddPhotoResult.AddFailed(RuntimeException("store down")))
-        val failedResponse = uploadPhoto(plantId.value, jpegBytes, "image/jpeg")(binding.port)
-        assertEquals(
-          failedResponse.code            -> jsonBody(failedResponse),
-          StatusCode.InternalServerError -> json("""{"message":"photo could not be added"}""")
-        )
+        val failedResponse  = uploadPhoto(plantId.value, jpegBytes, "image/jpeg")(binding.port)
+        val expectedFailure = StatusCode.InternalServerError -> json("""{"message":"photo could not be added"}""")
+        assertEquals(failedResponse.code -> jsonBody(failedResponse), expectedFailure)
       finally binding.stop()
 
   test("should list photos for a plant"):

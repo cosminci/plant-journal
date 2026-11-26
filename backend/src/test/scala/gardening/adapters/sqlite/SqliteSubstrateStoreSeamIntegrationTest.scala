@@ -67,9 +67,9 @@ class SqliteSubstrateStoreSeamIntegrationTest extends munit.FunSuite:
 
   test("should reject invalid stored substrate component status"):
     Using.resource(storeResource): resource =>
-      val _        = resource.store.addSubstrateComponent(component)
-      val rejected = intercept[java.sql.SQLException]:
-        execute(resource.dataSource, "update substrate_component set status = 'Unknown' where name = 'Pumice'")
+      val _                   = resource.store.addSubstrateComponent(component)
+      val invalidStatusUpdate = "update substrate_component set status = 'Unknown' where name = 'Pumice'"
+      val rejected            = intercept[java.sql.SQLException](execute(resource.dataSource, invalidStatusUpdate))
 
       assert(rejected.getMessage.contains("CHECK constraint failed"))
 

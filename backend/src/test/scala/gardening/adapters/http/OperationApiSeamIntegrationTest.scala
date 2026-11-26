@@ -66,7 +66,7 @@ class OperationApiSeamIntegrationTest extends munit.FunSuite:
   test("should expose the entire recorded date range or an explicit empty history"):
     val lastDate      = date.plusSeconds(60)
     val rangePath     = s"/operations/date-range?plantId=${plantId.value}"
-    val recordedRange = OperationDateRange.Recorded(date, lastDate)
+    val recordedRange = OperationDateRange.Recorded.from(List(date, lastDate))
 
     val recordedRefs     = Refs()
     val recordedResponse = get(rangePath, buildOperationApi(recordedRefs, operationDateRangeResult = GetOperationDateRangeResult.Read(recordedRange)))

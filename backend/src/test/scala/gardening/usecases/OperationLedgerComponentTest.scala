@@ -82,7 +82,7 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
   test("should read an ordered recorded date range independently of operation pages"):
     val firstRecorded = date
     val lastRecorded  = date.plusSeconds(60)
-    val recorded      = OperationDateRange.Recorded(firstRecorded, lastRecorded)
+    val recorded      = OperationDateRange.Recorded.from(List(firstRecorded, lastRecorded))
     val failure       = RuntimeException("date read failed")
 
     val recordedRefs = Refs()
@@ -92,7 +92,6 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
     val emptyResult   = buildLedger().getOperationDateRange(plant.id)
     val missingResult = buildLedger(operationDateRangeResult = GetOperationDateRangeResult.PlantMissing).getOperationDateRange(plant.id)
     val failedResult  = buildLedger(operationDateRangeResult = GetOperationDateRangeResult.ReadFailed(failure)).getOperationDateRange(plant.id)
-    val invalidRange  = intercept[IllegalArgumentException](OperationDateRange.Recorded(lastRecorded, firstRecorded))
 
     val expectedRecorded = GetOperationDateRangeResult.Read(recorded)
     val expectedEmpty    = GetOperationDateRangeResult.Read(OperationDateRange.Empty)
@@ -100,7 +99,6 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
     assertEquals(emptyResult, expectedEmpty)
     assertEquals(missingResult, GetOperationDateRangeResult.PlantMissing)
     assertEquals(failedResult, GetOperationDateRangeResult.ReadFailed(failure))
-    assertEquals(invalidRange.getMessage, "requirement failed: last recorded operation cannot precede first")
     assertEquals(recordedRefs.requestedDateRanges.get(), Vector(plant.id))
     assertEquals(recordedRefs.requestedOperationWindows.get(), Vector.empty)
 

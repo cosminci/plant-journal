@@ -92,7 +92,7 @@ class PlantApiSeamIntegrationTest extends munit.FunSuite:
   test("should read the archived count without loading archived plants"):
     val refs = Refs()
 
-    val response = get("/plants/archived/count", buildPlantApi(refs, archivedCountResult = ArchivedCountResult.Counted(3)))
+    val response = get("/plants/archived/count", buildPlantApi(refs, archivedCountResult = ArchivedCountResult.Counted(3L)))
 
     val expected = StatusCode.Ok -> json("""{"count":3}""")
     assertEquals(response.code -> jsonBody(response), expected)
@@ -213,7 +213,7 @@ class PlantApiSeamIntegrationTest extends munit.FunSuite:
       refs: Refs = Refs(),
       createPlantResult: CreatePlantResult = CreatePlantResult.Created(plant),
       plantsResult: GetPlantsResult = GetPlantsResult.Read(Vector.empty),
-      archivedCountResult: ArchivedCountResult = ArchivedCountResult.Counted(0),
+      archivedCountResult: ArchivedCountResult = ArchivedCountResult.Counted(0L),
       editPlantResult: EditPlantResult = EditPlantResult.Edited(plant),
       refreshResult: RefreshAttentionResult = RefreshAttentionResult.Refreshed(AttentionProjection(date, Vector.empty))
   ) =

@@ -44,11 +44,7 @@ object SqliteOperationStore:
           for
             _      <- rows.headOption.toRight(GetOperationDateRangeResult.PlantMissing)
             parsed <- rows.flatMap(_.date).traverse(parseOperationDate).left.map(GetOperationDateRangeResult.ReadFailed.apply)
-            first  <- parsed.headOption.toRight(GetOperationDateRangeResult.Read(OperationDateRange.Empty))
-          yield
-            val earliest = parsed.foldLeft(first)((previous, current) => if current.isBefore(previous) then current else previous)
-            val latest   = parsed.foldLeft(first)((previous, current) => if current.isAfter(previous) then current else previous)
-            GetOperationDateRangeResult.Read(OperationDateRange.Recorded(earliest, latest))
+          yield GetOperationDateRangeResult.Read(OperationDateRange.Recorded.from(parsed.toList))
         result.merge
 
       catch case error: SqlException => GetOperationDateRangeResult.ReadFailed(error)

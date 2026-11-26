@@ -1,5 +1,8 @@
 package gardening.domain.plants
 
+import io.github.iltotore.iron.*
+import io.github.iltotore.iron.constraint.numeric.GreaterEqual
+
 enum GetPlantResult:
   case Read(plant: Plant)
   case RecordMissing
@@ -22,8 +25,10 @@ enum AddPlantResult:
 sealed trait ArchivedCountResult
 
 object ArchivedCountResult:
-  final case class Counted(count: Long) extends ArchivedCountResult:
-    require(count >= 0L, "archived plant count must be non-negative")
+  sealed abstract case class Counted(count: Long :| GreaterEqual[0L]) extends ArchivedCountResult
+
+  object Counted:
+    def apply(count: Long :| GreaterEqual[0L]): Counted = new Counted(count) {}
   final case class ReadFailed(reason: Throwable) extends ArchivedCountResult
 
 enum EditPlantResult:

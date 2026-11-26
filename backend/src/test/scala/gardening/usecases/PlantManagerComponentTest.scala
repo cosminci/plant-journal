@@ -113,13 +113,11 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
     val failure = RuntimeException("count unavailable")
     val refs    = Refs()
 
-    val countResult  = buildManager(refs, archivedCountResult = ArchivedCountResult.Counted(4)).getArchivedCount
+    val countResult  = buildManager(refs, archivedCountResult = ArchivedCountResult.Counted(4L)).getArchivedCount
     val failedResult = buildManager(archivedCountResult = ArchivedCountResult.ReadFailed(failure)).getArchivedCount
-    val invalidCount = intercept[IllegalArgumentException](ArchivedCountResult.Counted(-1L))
 
-    assertEquals(countResult, ArchivedCountResult.Counted(4))
+    assertEquals(countResult, ArchivedCountResult.Counted(4L))
     assertEquals(failedResult, ArchivedCountResult.ReadFailed(failure))
-    assertEquals(invalidCount.getMessage, "requirement failed: archived plant count must be non-negative")
     assertEquals(refs.requestedStatuses.get(), Vector.empty)
 
   test("should archive an active plant by editing its status alone"):
@@ -202,7 +200,7 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
       addPlantResult: AddPlantResult = AddPlantResult.Added,
       getPlantsResult: GetPlantsResult = GetPlantsResult.Read(Vector.empty),
       archivedPlantsResult: Option[GetPlantsResult] = None,
-      archivedCountResult: ArchivedCountResult = ArchivedCountResult.Counted(0),
+      archivedCountResult: ArchivedCountResult = ArchivedCountResult.Counted(0L),
       getPlantResult: GetPlantResult = GetPlantResult.Read(plant),
       updatePlantResult: UpdatePlantResult = UpdatePlantResult.Updated,
       componentReadResult: GetSubstrateComponentsResult = GetSubstrateComponentsResult.Read(seededComponents)

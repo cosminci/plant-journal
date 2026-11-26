@@ -56,6 +56,14 @@ final case class OperationPage(operations: Vector[Operation], hasNextPage: Boole
 sealed trait OperationDateRange
 
 object OperationDateRange:
-  case object Empty                                        extends OperationDateRange
-  final case class Recorded(first: Instant, last: Instant) extends OperationDateRange:
-    require(!last.isBefore(first), "last recorded operation cannot precede first")
+  case object Empty                                                  extends OperationDateRange
+  sealed abstract case class Recorded(first: Instant, last: Instant) extends OperationDateRange
+
+  object Recorded:
+    def from(dates: List[Instant]): OperationDateRange = dates match
+      case Nil           => Empty
+      case first :: rest =>
+        val (earliest, latest) = rest.foldLeft((first, first)):
+          case ((earliest, latest), date) =>
+            (if date.isBefore(earliest) then date else earliest, if date.isAfter(latest) then date else latest)
+        new Recorded(earliest, latest) {}

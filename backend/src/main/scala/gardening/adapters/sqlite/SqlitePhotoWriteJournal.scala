@@ -73,16 +73,15 @@ object SqlitePhotoWriteJournal:
         case error: DatabaseCorruption => PhotoJournalListResult.ListFailed(error)
 
     private def toIntent(row: PhotoWriteIntentRow): Either[Throwable, PhotoWriteIntent] =
-      for
-        status <- parseWriteStatus(row.status)
-        intent <- row.operation match
-          case "Add"    => toAddIntent(row, status)
-          case "Remove" => toRemoveIntent(row, status)
-          // A CHECK constraint on this column makes every other stored value unreachable.
-          // $COVERAGE-OFF$
-          case other => Left(RuntimeException(s"invalid stored photo write intent operation: $other"))
-          // $COVERAGE-ON$
-      yield intent
+      parseWriteStatus(row.status).flatMap:
+        status =>
+          row.operation match
+            case "Add"    => toAddIntent(row, status)
+            case "Remove" => toRemoveIntent(row, status)
+            // A CHECK constraint on this column makes every other stored value unreachable.
+            // $COVERAGE-OFF$
+            case other => Left(RuntimeException(s"invalid stored photo write intent operation: $other"))
+            // $COVERAGE-ON$
 
     private def toAddIntent(row: PhotoWriteIntentRow, status: PhotoWriteIntentStatus): Either[Throwable, PhotoWriteIntent] =
       for

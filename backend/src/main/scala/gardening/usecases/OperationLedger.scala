@@ -62,7 +62,7 @@ object OperationLedger:
         case GetPlantResult.ReadFailed(reason) =>
           LogOperationResult.LoggingFailed(reason).tap(_ => log.error("log operation", reason))
         case GetPlantResult.Read(found) if found.details.status === PlantStatus.Archived => LogOperationResult.PlantArchived
-        case GetPlantResult.Read(_)                                                      =>
+        case _: GetPlantResult.Read                                                      =>
           val operation = Operation(OperationId(idGen.nextId()), plant, date, details)
           validateOperationDetails(details) match
             case Left(reason) => LogOperationResult.LoggingFailed(reason)
@@ -86,7 +86,7 @@ object OperationLedger:
         case GetOperationResult.RecordMissing      => EditOperationResult.OperationMissing
         case GetOperationResult.Read(found) if !sameType(found.details, details) =>
           EditOperationResult.OperationTypeMismatch
-        case GetOperationResult.Read(_) =>
+        case _: GetOperationResult.Read =>
           validateOperationDetails(details) match
             case Left(reason) => EditOperationResult.EditFailed(reason)
             case Right(_)     =>

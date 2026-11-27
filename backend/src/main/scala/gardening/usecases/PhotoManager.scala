@@ -166,7 +166,7 @@ object PhotoManager:
 
     private def compensateMetadataRestore(photo: PlantPhoto, contentDeleteReason: Throwable) =
       store.addPhoto(photo) match
-        case AddPhotoResult.Added(_) =>
+        case _: AddPhotoResult.Added =>
           RemovePhotoResult.RemoveFailed(contentDeleteReason).tap(_ => log.error("remove photo", contentDeleteReason))
         case AddPhotoResult.PlantMissing =>
           val compensationCause = RuntimeException("plant missing while restoring photo metadata")

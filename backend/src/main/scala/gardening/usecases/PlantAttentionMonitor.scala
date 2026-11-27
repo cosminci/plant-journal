@@ -3,9 +3,13 @@ package gardening.usecases
 import cats.syntax.either.*
 import cats.syntax.eq.*
 import cats.syntax.option.*
+import cats.syntax.traverse.*
 import gardening.domain.*
 import gardening.domain.attention.*
-import gardening.ports.{PlantAttentionStore, PlantAttentionMonitorMetricsApi}
+import gardening.ports.{DormancyStore, PlantAttentionStore, PlantAttentionMonitorMetricsApi}
+import gardening.domain.plants.DormancyPeriod
+import io.github.iltotore.iron.*
+import io.github.iltotore.iron.constraint.numeric.Positive
 import gardening.capabilities.{Clock, Logger}
 import gardening.domain.attention.WateringHistory.*
 
@@ -27,11 +31,12 @@ object PlantAttentionMonitor:
 
   def make(settings: Settings)(using
       store: PlantAttentionStore^,
+      dormancy: DormancyStore^,
       clock: Clock^
-  )(using log: Logger^, metrics: PlantAttentionMonitorMetricsApi^): PlantAttentionMonitor^{store, clock, log, metrics} =
+  )(using log: Logger^, metrics: PlantAttentionMonitorMetricsApi^): PlantAttentionMonitor^{store, dormancy, clock, log, metrics} =
     LivePlantAttentionMonitor(settings)
 
-  private class LivePlantAttentionMonitor(settings: Settings)(using store: PlantAttentionStore^, clock: Clock^)(using
+  private class LivePlantAttentionMonitor(settings: Settings)(using store: PlantAttentionStore^, dormancy: DormancyStore^, clock: Clock^)(using
       log: Logger^,
       metrics: PlantAttentionMonitorMetricsApi^
   ) extends PlantAttentionMonitor:
@@ -52,29 +57,57 @@ object PlantAttentionMonitor:
           RefreshAttentionResult.Refreshed(projection)
 
     private def computeProjection: Either[Throwable, AttentionProjection] =
-      store.getAttentionSamples(size = settings.historySize) match
-        case GetAttentionSamplesResult.ReadFailed(reason) => reason.asLeft
-        case GetAttentionSamplesResult.Read(samples)      => projectionFor(samples).asRight
-
-    private def projectionFor(samples: Vector[PlantAttentionSample]): AttentionProjection =
       val measuredAt = clock.now()
-      AttentionProjection(measuredAt, samples.map(attentionFor(_, measuredAt)))
+      for
+        plants      <- store.listActivePlants()
+        assessments <- plants.traverse(assessPlant(_, measuredAt))
+      yield AttentionProjection(measuredAt, assessments.flatten)
 
-    private def attentionFor(sample: PlantAttentionSample, measuredAt: Instant): PlantAttention =
+    private def assessPlant(plant: AttentionPlant, measuredAt: Instant): Either[Throwable, Option[PlantAttention]] =
+      dormancy.listPeriods(plant.id).flatMap: periods =>
+        if periods.exists(_.maybeEndedAt.isEmpty) then none[PlantAttention].asRight
+        else
+          val closed = periods.flatMap(period => period.maybeEndedAt.map(period.startedAt -> _))
+          sampleWaterings(plant.id, windows(periods), Vector.empty).map: dates =>
+            attentionFor(PlantAttentionSample(plant.id, dates), measuredAt, closed).some
+
+    private def windows(periods: Vector[DormancyPeriod]): List[WateringWindow] =
+      val starts = None +: periods.map(_.maybeEndedAt)
+      val ends   = periods.map(period => Some(period.startedAt)) :+ None
+      starts.zip(ends).reverseIterator.collect:
+        case (maybeStart, maybeEnd) if !maybeStart.exists(start => maybeEnd.exists(end => !start.isBefore(end))) =>
+          WateringWindow(maybeStart, maybeEnd)
+      .toList
+
+    private def sampleWaterings(plant: PlantId, remaining: List[WateringWindow], dates: WateringHistory): ReadWateringsResult =
+      val size = settings.historySize - dates.size
+      remaining match
+        case window :: rest if size > 0 =>
+          store.readWaterings(plant, window, size.assume[Positive]) match
+            case Right(found) => sampleWaterings(plant, rest, dates ++ found)
+            case Left(reason) => reason.asLeft
+        case _ => dates.asRight
+
+    private def attentionFor(sample: PlantAttentionSample, measuredAt: Instant, closed: Vector[(Instant, Instant)]): PlantAttention =
       val dates       = sample.wateringDates
       val sampleCount = dates.sampleCount
       val watering    =
         dates.headOption match
           case None                 => WateringAttention.Unavailable(sampleCount, none)
           case Some(latestWatering) =>
-            val timeSinceWatering = elapsed(latestWatering, measuredAt)
+            val timeSinceWatering = elapsed(latestWatering, measuredAt, closed)
             if sampleCount < settings.minSampleCount then WateringAttention.Unavailable(sampleCount, timeSinceWatering.some)
-            else assessWatering(dates, sampleCount, timeSinceWatering)
+            else assessWatering(dates, sampleCount, timeSinceWatering, closed)
       PlantAttention(sample.plantId, watering)
 
-    private def assessWatering(dates: Vector[Instant], sampleCount: WateringSampleCount, timeSinceWatering: FiniteDuration): WateringAttention =
+    private def assessWatering(
+        dates: Vector[Instant],
+        sampleCount: WateringSampleCount,
+        timeSinceWatering: FiniteDuration,
+        closed: Vector[(Instant, Instant)]
+    ): WateringAttention =
       val intervals = dates.reverse.sliding(2).flatMap: window =>
-        window.headOption.zip(window.lastOption).map((previous, current) => elapsed(previous, current))
+        window.headOption.zip(window.lastOption).map((previous, current) => elapsed(previous, current, closed))
       val average = intervals.foldLeft(Duration.Zero)(_ + _) / (dates.size - 1L)
       WateringAttention.Current(sampleCount, average, timeSinceWatering).assess(settings.overdueGracePeriod)
 
@@ -91,5 +124,9 @@ object PlantAttentionMonitor:
           metrics.setWateringCadence(plantId, available.averageInterval)
         case _: PlantAttention => ()
 
-    private def elapsed(previous: Instant, current: Instant): FiniteDuration =
-      ChronoUnit.MILLIS.between(previous, current).millis
+    private def elapsed(previous: Instant, current: Instant, closed: Vector[(Instant, Instant)]): FiniteDuration =
+      val inactive = closed.iterator.map: (start, end) =>
+        val from  = if start.isAfter(previous) then start else previous
+        val until = if end.isBefore(current) then end else current
+        math.max(0L, ChronoUnit.MILLIS.between(from, until))
+      (ChronoUnit.MILLIS.between(previous, current) - inactive.sum).millis

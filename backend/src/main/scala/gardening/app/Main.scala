@@ -2,7 +2,7 @@ package gardening.app
 
 import cats.syntax.either.*
 import gardening.adapters.http.*
-import gardening.adapters.sqlite.SqliteLocation
+import gardening.adapters.sqlite.{SqliteLocation, SqlitePlantStore}
 import gardening.adapters.prometheus.{PrometheusAttentionFeedMetrics, PrometheusStorageMetrics}
 import gardening.adapters.system.SystemClock
 import gardening.capabilities.Logger
@@ -23,7 +23,12 @@ object Main:
 
   def main(args: Array[String]): Unit =
     val config = AppConfig.load()
+    if args.toList.contains("--migrate-only") then
+      Using.resource(AppResources.acquire(SqliteLocation.File(config.storage.dbPath), config.storage.lockTimeout)): resources =>
+        val _ = Flyway.configure().dataSource(resources.dataSource).load().migrate()
+    else serve(config)
 
+  private def serve(config: AppConfig): Unit =
     given log: Logger = new Logger:
       private val underlying           = LoggerFactory.getLogger("gardening")
       def info(message: String): Unit  = underlying.info(message)
@@ -37,7 +42,8 @@ object Main:
 
     val serverResult = Using.resource(AppResources.acquire(SqliteLocation.File(config.storage.dbPath), config.storage.lockTimeout)): resources =>
       supervisedError(EitherMode[Throwable]()):
-        val _         = Flyway.configure().dataSource(resources.dataSource).load().migrate()
+        val _ = Flyway.configure().dataSource(resources.dataSource).load().migrate()
+        SqlitePlantStore.checkDormancyBackfill(resources.transactor)
         val programs  = Programs.make(resources, config, registry)
         val endpoints = List(HealthApi.serverEndpoint, prometheusMetrics.metricsEndpoint) ++
           PlantApi.serverEndpoints(using programs.plants, programs.plantAttentionMonitor) ++

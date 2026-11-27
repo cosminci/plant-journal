@@ -1,6 +1,6 @@
 package gardening.app
 
-import gardening.adapters.sqlite.{SqliteOperationStore, SqlitePesticideStore, SqlitePhotoStore, SqlitePhotoWriteJournal, SqlitePlantStore, SqliteSubstrateStore}
+import gardening.adapters.sqlite.{SqliteDormancyStore, SqliteOperationStore, SqlitePesticideStore, SqlitePhotoStore, SqlitePhotoWriteJournal, SqlitePlantStore, SqliteSubstrateStore}
 import gardening.adapters.prometheus.*
 import gardening.adapters.file.FilePhotoContentStore
 import gardening.adapters.system.{SystemClock, UuidIdGenerator}
@@ -33,6 +33,7 @@ object Programs:
 
   def make(resources: AppResources, config: AppConfig, registry: PrometheusRegistry)(using Ox)(using log: Logger): Programs =
     val plantStore         = SqlitePlantStore.make(resources.transactor)
+    val dormancyStore      = SqliteDormancyStore.make(resources.transactor)
     val photoStore         = SqlitePhotoStore.make(resources.transactor)
     val photoWriteJournal  = SqlitePhotoWriteJournal.make(resources.transactor)
     val operationStore     = SqliteOperationStore.make(resources.transactor)
@@ -51,11 +52,11 @@ object Programs:
     given SubstrateCatalogMetricsApi                  = PrometheusSubstrateCatalogMetrics.make(registry)
     given PesticideCatalogMetricsApi                  = PrometheusPesticideCatalogMetrics.make(registry)
 
-    val attention = PlantAttentionMonitor.make(config.attention.watering)(using plantStore, SystemClock)
+    val attention = PlantAttentionMonitor.make(config.attention.watering)(using plantStore, dormancyStore, SystemClock)
     forkDiscard:
       Iterator.continually { sleep(config.attention.recomputeInterval); attention.refreshAll.discard }.foreach(identity)
     Programs(
-      PlantManager.make(using plantStore, substrateStore, UuidIdGenerator, plantLock).tap(_.warmDisplayNames()),
+      PlantManager.make(using plantStore, dormancyStore, substrateStore, UuidIdGenerator, SystemClock, plantLock).tap(_.warmDisplayNames()),
       PhotoManager.make(using photoStore, contentStore, photoWriteJournal, thumbnailGenerator, UuidIdGenerator, SystemClock),
       OperationLedger.make(using operationStore, plantStore, substrateStore, pesticideStore, UuidIdGenerator, plantLock),
       attention,

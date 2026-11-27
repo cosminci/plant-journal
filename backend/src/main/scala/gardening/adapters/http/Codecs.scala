@@ -72,6 +72,7 @@ private[http] object Codecs:
     name match
       case "maybeNickname" => "nickname"
       case "maybeNote"     => "notes"
+      case "maybeEndedAt"  => "endedAt"
       case _               => name
 
   def lowerCamel(name: String): String = name.substring(0, 1).toLowerCase + name.substring(1)

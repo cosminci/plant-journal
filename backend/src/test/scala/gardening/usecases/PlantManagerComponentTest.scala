@@ -34,7 +34,8 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
       location = Location("Balcony"),
       substrate = substrate,
       status = PlantStatus.Active
-    )
+    ),
+    registeredAt = java.time.Instant.EPOCH
   )
 
   private val seededComponents = Vector(perliteId, pineBarkId, sand3to5Id, lecaId)
@@ -183,6 +184,60 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
     assertEquals(readFailedResult, EditPlantResult.CatalogReadFailed(failure))
     assertEquals(refs.updatedPlants.get(), Vector.empty)
 
+  test("dormancy edits preserve period identity and reject moving a boundary before registration"):
+    val manager = buildManager(now = plant.registeredAt.plusSeconds(10))
+    val start   = plant.registeredAt.plusSeconds(1)
+    val end     = start.plusSeconds(1)
+    val id      = DormancyPeriodId("id-1")
+    val opened  = DormancyPeriod(id, start, maybeEndedAt = None)
+    assertEquals(manager.editDormancy(plant.id, DormancyEdit.Start(start)), EditDormancyResult.Edited(Vector(opened)))
+    assertEquals(manager.editDormancy(plant.id, DormancyEdit.End(end)), EditDormancyResult.Edited(Vector(DormancyPeriod(id, start, Some(end)))))
+    val invalid = cats.data.NonEmptyList.one(DormancyPeriod(id, plant.registeredAt.minusSeconds(1), Some(end)))
+    assertEquals(manager.editDormancy(plant.id, DormancyEdit.CorrectDates(invalid)), EditDormancyResult.InvalidDates)
+    val corrected = DormancyPeriod(id, start, Some(start))
+    val result    = manager.editDormancy(plant.id, DormancyEdit.CorrectDates(cats.data.NonEmptyList.one(corrected)))
+    assertEquals(result, EditDormancyResult.Edited(Vector(corrected)))
+
+  test("rejects invalid transitions and reports unavailable histories"):
+    val now     = plant.registeredAt.plusSeconds(10)
+    val start   = now.minusSeconds(5)
+    val manager = buildManager(now = now)
+    assertEquals(manager.getDormancyHistory(plant.id), GetDormancyHistoryResult.Read(Vector.empty))
+    assertEquals(manager.editDormancy(plant.id, DormancyEdit.End(start)), EditDormancyResult.InvalidDates)
+    assertEquals(manager.editDormancy(plant.id, DormancyEdit.Start(now.plusSeconds(1))), EditDormancyResult.InvalidDates)
+    val opened = DormancyPeriod(DormancyPeriodId("id-1"), start, maybeEndedAt = None)
+    assertEquals(manager.editDormancy(plant.id, DormancyEdit.Start(start)), EditDormancyResult.Edited(Vector(opened)))
+    assertEquals(manager.editDormancy(plant.id, DormancyEdit.Start(now)), EditDormancyResult.InvalidDates)
+    val wrong = DormancyPeriod(DormancyPeriodId("wrong"), start, maybeEndedAt = None)
+    assertEquals(manager.editDormancy(plant.id, DormancyEdit.CorrectDates(cats.data.NonEmptyList.one(wrong))), EditDormancyResult.InvalidDates)
+    val missing = buildManager(getPlantResult = GetPlantResult.RecordMissing)
+    assertEquals(missing.getDormancyHistory(plant.id), GetDormancyHistoryResult.PlantMissing)
+    assertEquals(missing.editDormancy(plant.id, DormancyEdit.Start(start)), EditDormancyResult.PlantMissing)
+    val offline = RuntimeException("offline")
+    val failed  = buildManager(getPlantResult = GetPlantResult.ReadFailed(offline))
+    assertEquals(failed.getDormancyHistory(plant.id), GetDormancyHistoryResult.ReadFailed(offline))
+    assertEquals(failed.editDormancy(plant.id, DormancyEdit.Start(start)), EditDormancyResult.EditFailed(offline))
+    val archived = buildManager(getPlantResult = GetPlantResult.Read(plant.copy(details = plant.details.copy(status = PlantStatus.Archived))))
+    assertEquals(archived.editDormancy(plant.id, DormancyEdit.Start(start)), EditDormancyResult.InvalidDates)
+
+  test("accepts touching periods and reports dormancy store failures"):
+    val start   = plant.registeredAt
+    val end     = start.plusSeconds(5)
+    val id      = DormancyPeriodId("previous")
+    val first   = DormancyPeriod(id, start, Some(end))
+    val manager = buildManager(now = end, initialPeriods = Vector(first))
+    val second  = DormancyPeriod(DormancyPeriodId("id-1"), end, maybeEndedAt = None)
+    val started = manager.editDormancy(plant.id, DormancyEdit.Start(end))
+    val ended   = manager.editDormancy(plant.id, DormancyEdit.End(end))
+    assertEquals(started, EditDormancyResult.Edited(Vector(first, second)))
+    assertEquals(ended, EditDormancyResult.Edited(Vector(first, second.copy(maybeEndedAt = Some(end)))))
+    val offline    = RuntimeException("dormancy store offline")
+    val brokenRead = buildManager(periodReadError = Some(offline))
+    assertEquals(brokenRead.getDormancyHistory(plant.id), GetDormancyHistoryResult.ReadFailed(offline))
+    assertEquals(brokenRead.editDormancy(plant.id, DormancyEdit.Start(start)), EditDormancyResult.EditFailed(offline))
+    val brokenWrite = buildManager(periodWriteError = Some(offline))
+    assertEquals(brokenWrite.editDormancy(plant.id, DormancyEdit.Start(start)), EditDormancyResult.EditFailed(offline))
+
   final private case class Refs():
     val createdPlants: AtomicReference[Vector[Plant]]                                        = AtomicReference(Vector.empty)
     val requestedStatuses: AtomicReference[Vector[PlantStatus]]                              = AtomicReference(Vector.empty)
@@ -203,7 +258,11 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
       archivedCountResult: ArchivedCountResult = ArchivedCountResult.Counted(0L),
       getPlantResult: GetPlantResult = GetPlantResult.Read(plant),
       updatePlantResult: UpdatePlantResult = UpdatePlantResult.Updated,
-      componentReadResult: GetSubstrateComponentsResult = GetSubstrateComponentsResult.Read(seededComponents)
+      componentReadResult: GetSubstrateComponentsResult = GetSubstrateComponentsResult.Read(seededComponents),
+      now: java.time.Instant = plant.registeredAt,
+      initialPeriods: Vector[DormancyPeriod] = Vector.empty,
+      periodReadError: Option[Throwable] = None,
+      periodWriteError: Option[Throwable] = None
   ) =
     val store = new PlantStore:
       override def addPlant(plant: Plant): AddPlantResult =
@@ -231,4 +290,19 @@ class PlantManagerComponentTest extends munit.FunSuite with TestImplicits:
         fail("plants must not write substrate mixes")
       override def deleteSubstrateMix(id: java.util.UUID): DeleteSubstrateMixResult =
         fail("plants must not delete substrate mixes")
-    PlantManager.make(using store, substrateStore, () => "id-1", PlantUpdateLock.make)(using log, recordingMetrics(refs))
+    val dormancy = new gardening.ports.DormancyStore:
+      private val periods                                                                  = AtomicReference(initialPeriods)
+      def listPeriods(plant: PlantId): ListDormancyPeriodsResult                           = periodReadError.toLeft(periods.get())
+      def insertPeriod(plant: PlantId, period: DormancyPeriod): InsertDormancyPeriodResult =
+        periodWriteError.toLeft {
+          val _ = periods.updateAndGet(_ :+ period)
+        }
+      def updatePeriods(plant: PlantId, updates: cats.data.NonEmptyList[DormancyPeriod]): UpdateDormancyPeriodsResult =
+        val byId = updates.toList.map(period => period.id -> period).toMap
+        val _    = periods.updateAndGet(_.map(period => byId.getOrElse(period.id, period)))
+        Right(())
+    PlantManager.make(using store, dormancy, substrateStore, () => "id-1", () => now, PlantUpdateLock.make)(
+      using
+      log,
+      recordingMetrics(refs)
+    )

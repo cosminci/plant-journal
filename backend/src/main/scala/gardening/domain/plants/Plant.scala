@@ -2,6 +2,7 @@ package gardening.domain.plants
 
 import cats.Eq
 import gardening.domain.*
+import java.time.Instant
 
 opaque type Species = String
 object Species:
@@ -24,7 +25,7 @@ enum PlantStatus derives CanEqual:
 object PlantStatus:
   given Eq[PlantStatus] = Eq.fromUniversalEquals
 
-final case class Plant(id: PlantId, details: PlantDetails)
+final case class Plant(id: PlantId, details: PlantDetails, registeredAt: Instant)
 
 final case class PlantDetails(
     species: Species,

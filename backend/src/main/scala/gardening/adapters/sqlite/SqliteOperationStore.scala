@@ -106,8 +106,9 @@ object SqliteOperationStore:
     private def insertOperationRow(operation: Operation) =
       val (operationKind, payload) = encodeOperationDetails(operation.details)
       val storedDate               = operationDateFormatter.format(operation.date)
-      sql"""insert into operation (id, plant_id, date, kind, payload)
-            values (${operation.id.value}, ${operation.plantId.value}, $storedDate, $operationKind, $payload)"""
+      val watering                 = isWatering(operation.details)
+      sql"""insert into operation (id, plant_id, date, kind, payload, is_watering)
+            values (${operation.id.value}, ${operation.plantId.value}, $storedDate, $operationKind, $payload, $watering)"""
 
     // A repot only overwrites the plant's stored substrate when no other recorded repot outranks it
     // by (date, id); this makes "sync the plant if this is the latest repot" a single atomic statement
@@ -145,7 +146,13 @@ object SqliteOperationStore:
 
     private def updateOperationRow(operationId: String, details: OperationDetails) =
       val (operationKind, payload) = encodeOperationDetails(details)
-      sql"update operation set kind = $operationKind, payload = $payload where id = $operationId returning id, plant_id, date, kind, payload"
+      val watering                 = isWatering(details)
+      sql"""update operation set kind = $operationKind, payload = $payload, is_watering = $watering
+            where id = $operationId returning id, plant_id, date, kind, payload"""
+
+    private def isWatering(details: OperationDetails): Int = details match
+      case care: OperationDetails.Care => if care.actions.contains(ActionType.Watered) then 1 else 0
+      case _: OperationDetails.Repot   => 0
 
     private def encodeOperationDetails(details: OperationDetails) =
       details match

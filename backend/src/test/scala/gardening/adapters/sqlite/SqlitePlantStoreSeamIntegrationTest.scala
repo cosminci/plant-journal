@@ -2,7 +2,6 @@ package gardening.adapters.sqlite
 
 import cats.syntax.option.*
 import gardening.domain.*
-import gardening.domain.attention.*
 import gardening.domain.operations.*
 import gardening.domain.plants.*
 import gardening.ports.{PlantStore, PlantAttentionStore, OperationStore}
@@ -32,7 +31,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
     Using.resource(storeResource): resource =>
       val plantStore     = resource.plantStore
       val operationStore = resource.operationStore
-      val created        = Plant(PlantId("new"), defaultPlantDetails)
+      val created        = Plant(PlantId("new"), defaultPlantDetails, java.time.Instant.EPOCH)
 
       val result     = plantStore.addPlant(created)
       val plants     = plantStore.getPlants(PlantStatus.Active)
@@ -53,7 +52,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       val found   = plantStore.getPlant(PlantId("p1"))
       val missing = plantStore.getPlant(PlantId("missing"))
 
-      assertEquals(found, GetPlantResult.Read(Plant(PlantId("p1"), expectedDetails)))
+      assertEquals(found, GetPlantResult.Read(Plant(PlantId("p1"), expectedDetails, java.time.Instant.EPOCH)))
       assertEquals(missing, GetPlantResult.RecordMissing)
 
   test("should list plants by status without decoding records in the other view"):
@@ -63,8 +62,8 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       seedPlant(dataSource, id = "active")
       seedPlant(dataSource, id = "archived", status = PlantStatus.Archived)
 
-      val activePlant   = Plant(PlantId("active"), defaultPlantDetails)
-      val archivedPlant = Plant(PlantId("archived"), defaultPlantDetails.copy(status = PlantStatus.Archived))
+      val activePlant   = Plant(PlantId("active"), defaultPlantDetails, java.time.Instant.EPOCH)
+      val archivedPlant = Plant(PlantId("archived"), defaultPlantDetails.copy(status = PlantStatus.Archived), java.time.Instant.EPOCH)
 
       val activeBefore   = plantStore.getPlants(PlantStatus.Active)
       val archivedBefore = plantStore.getPlants(PlantStatus.Archived)
@@ -100,7 +99,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       val plantResult = plantStore.getPlants(PlantStatus.Active)
 
       assertEquals(countResult, ArchivedCountResult.Counted(1L))
-      assertEquals(plantResult, GetPlantsResult.Read(Vector(Plant(PlantId("active"), defaultPlantDetails))))
+      assertEquals(plantResult, GetPlantsResult.Read(Vector(Plant(PlantId("active"), defaultPlantDetails, java.time.Instant.EPOCH))))
 
   test("should persist an active plant's archived status and retain readable operation history"):
     Using.resource(storeResource): resource =>
@@ -112,10 +111,10 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       val operationStore = resource.operationStore
       val firstLog       = operationStore.addOperation(operation)
 
-      val archivedPlant = Plant(plantId, defaultPlantDetails.copy(status = PlantStatus.Archived))
+      val archivedPlant = Plant(plantId, defaultPlantDetails.copy(status = PlantStatus.Archived), java.time.Instant.EPOCH)
       val archived      = plantStore.updatePlant(archivedPlant)
       val missing       = plantStore.updatePlant(archivedPlant.copy(id = PlantId("unknown")))
-      val staleUpdate   = plantStore.updatePlant(Plant(plantId, defaultPlantDetails))
+      val staleUpdate   = plantStore.updatePlant(Plant(plantId, defaultPlantDetails, java.time.Instant.EPOCH))
       val archivedCount = plantStore.getArchivedCount
       val history       = operationStore.getOperations(plantId, fullWindow)
       val activePlants  = plantStore.getPlants(PlantStatus.Active)
@@ -155,7 +154,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       val updatedNickname  = Nickname("Monty").some
       val updatedDetails   =
         PlantDetails(Species("Monstera deliciosa"), updatedNickname, Location("Living room"), updatedSubstrate, PlantStatus.Active)
-      val updatedPlant = Plant(PlantId("p1"), updatedDetails)
+      val updatedPlant = Plant(PlantId("p1"), updatedDetails, java.time.Instant.EPOCH)
 
       val plantStore = resource.plantStore
       val updated    = plantStore.updatePlant(updatedPlant)
@@ -170,7 +169,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
     Using.resource(storeResource): resource =>
       val dataSource = resource.dataSource
       seedPlant(dataSource, id = "p1", status = PlantStatus.Archived)
-      val activePlant   = Plant(PlantId("p1"), defaultPlantDetails)
+      val activePlant   = Plant(PlantId("p1"), defaultPlantDetails, java.time.Instant.EPOCH)
       val archivedPlant = activePlant.copy(details = activePlant.details.copy(substrate = lecaSubstrate, status = PlantStatus.Archived))
 
       val plantStore     = resource.plantStore
@@ -186,7 +185,7 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
 
   test("should report a missing plant when updating an unknown id"):
     Using.resource(storeResource): resource =>
-      resource.plantStore.updatePlant(Plant(PlantId("missing"), defaultPlantDetails)) match
+      resource.plantStore.updatePlant(Plant(PlantId("missing"), defaultPlantDetails, java.time.Instant.EPOCH)) match
         case UpdatePlantResult.UpdateFailed(reason) => assertEquals(reason.getMessage, "plant not found while updating: missing")
         case other                                  => fail(s"expected UpdateFailed, got $other")
 
@@ -196,14 +195,14 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       seedPlant(dataSource, id = "p1")
       val readOnlyStore = SqlitePlantStore.make(Transactor(dataSource, connectionConfig = makeReadOnly))
 
-      readOnlyStore.updatePlant(Plant(PlantId("p1"), defaultPlantDetails)) match
+      readOnlyStore.updatePlant(Plant(PlantId("p1"), defaultPlantDetails, java.time.Instant.EPOCH)) match
         case UpdatePlantResult.UpdateFailed(_) => ()
         case other                             => fail(s"expected UpdateFailed, got $other")
 
   test("should return read failures for plants, attention samples, and archived count when the schema is unavailable"):
     Using.resource(Sqlite.make(SqliteHelpers.lockTimeout).connect(SqliteLocation.InMemory(UUID.randomUUID().toString))): connection =>
       val plantStore = SqlitePlantStore.make(connection.transactor)
-      plantStore.addPlant(Plant(PlantId("new"), defaultPlantDetails)) match
+      plantStore.addPlant(Plant(PlantId("new"), defaultPlantDetails, java.time.Instant.EPOCH)) match
         case AddPlantResult.AddFailed(_) => ()
         case other                       => fail(s"expected AddFailed, got $other")
       plantStore.getPlant(PlantId("p1")) match
@@ -212,9 +211,9 @@ class SqlitePlantStoreSeamIntegrationTest extends FunSuite:
       plantStore.getPlants(PlantStatus.Active) match
         case GetPlantsResult.ReadFailed(_) => ()
         case other                         => fail(s"expected ReadFailed, got $other")
-      plantStore.getAttentionSamples(size = 20) match
-        case GetAttentionSamplesResult.ReadFailed(_) => ()
-        case other                                   => fail(s"expected ReadFailed, got $other")
+      plantStore.listActivePlants() match
+        case Left(_) => ()
+        case other   => fail(s"expected ReadFailed, got $other")
       plantStore.getArchivedCount match
         case ArchivedCountResult.ReadFailed(_) => ()
         case other                             => fail(s"expected ReadFailed, got $other")

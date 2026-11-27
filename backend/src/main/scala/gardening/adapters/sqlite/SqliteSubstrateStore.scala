@@ -61,9 +61,10 @@ object SqliteSubstrateStore:
             status = ${component.status.toString} where id = ${component.id.value.toString}"""
 
     private def toComponent(row: ComponentRow) =
+      val idResult = SubstrateComponentId.parse(row.id).toRight(RuntimeException(s"invalid substrate component id: ${row.id}"))
       for
-        id <- SubstrateComponentId.parse(row.id).toRight(RuntimeException(s"invalid substrate component id: ${row.id}"))
-        status = trust(Try(SubstrateComponentStatus.valueOf(row.status)).toEither)
+        id     <- idResult
+        status <- Try(SubstrateComponentStatus.valueOf(row.status)).toEither
       yield SubstrateComponent(id, SubstrateComponentData(SubstrateComponentName(row.name), row.maybeInfo.map(SubstrateComponentInfo.apply)), status)
 
     override def getSubstrateMixes: GetSubstrateMixesResult =

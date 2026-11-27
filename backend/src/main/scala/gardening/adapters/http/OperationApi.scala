@@ -122,17 +122,17 @@ object OperationApi:
     Schema.schemaForInt.validate(Validator.min(1).and(Validator.max(10))).map(_.refineOption[Interval.Closed[1, 10]])(value => value)
   // $COVERAGE-ON$
 
-  private given TapirCodec.PlainCodec[OperationOffset] = TapirCodec.int.mapDecode(value =>
+  private given TapirCodec.PlainCodec[OperationOffset] = TapirCodec.int.mapDecode { value =>
     value.refineOption[GreaterEqual[0]] match
       case Some(offset) => DecodeResult.Value(offset)
       case None         => DecodeResult.Error(value.toString, IllegalArgumentException("offset must be at least 0"))
-  )(value => value).schema(operationOffsetSchema)
+  }(value => value).schema(operationOffsetSchema)
 
-  private given TapirCodec.PlainCodec[OperationPageSize] = TapirCodec.int.mapDecode(value =>
+  private given TapirCodec.PlainCodec[OperationPageSize] = TapirCodec.int.mapDecode { value =>
     value.refineOption[Interval.Closed[1, 10]] match
       case Some(size) => DecodeResult.Value(size)
       case None       => DecodeResult.Error(value.toString, IllegalArgumentException("page size must be between 1 and 10"))
-  )(value => value).schema(operationPageSizeSchema)
+  }(value => value).schema(operationPageSizeSchema)
 
   // No endpoint accepts an OperationId in a request body, so this Decoder branch is never invoked.
   // $COVERAGE-OFF$

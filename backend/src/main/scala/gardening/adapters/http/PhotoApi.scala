@@ -142,17 +142,17 @@ object PhotoApi:
     Schema.schemaForInt.validate(Validator.min(1).and(Validator.max(24))).map(_.refineOption[Interval.Closed[1, 24]])(value => value)
   // $COVERAGE-ON$
 
-  private given TapirCodec.PlainCodec[PhotoOffset] = TapirCodec.int.mapDecode(value =>
+  private given TapirCodec.PlainCodec[PhotoOffset] = TapirCodec.int.mapDecode { value =>
     value.refineOption[GreaterEqual[0]] match
       case Some(offset) => DecodeResult.Value(offset)
       case None         => DecodeResult.Error(value.toString, IllegalArgumentException("offset must be at least 0"))
-  )(value => value).schema(photoOffsetSchema)
+  }(value => value).schema(photoOffsetSchema)
 
-  private given TapirCodec.PlainCodec[PhotoPageSize] = TapirCodec.int.mapDecode(value =>
+  private given TapirCodec.PlainCodec[PhotoPageSize] = TapirCodec.int.mapDecode { value =>
     value.refineOption[Interval.Closed[1, 24]] match
       case Some(size) => DecodeResult.Value(size)
       case None       => DecodeResult.Error(value.toString, IllegalArgumentException("page size must be between 1 and 24"))
-  )(value => value).schema(photoPageSizeSchema)
+  }(value => value).schema(photoPageSizeSchema)
 
   private given TapirCodec.PlainCodec[PhotoVariant] = TapirCodec.string.mapDecode {
     case "original"  => DecodeResult.Value(PhotoVariant.Original)

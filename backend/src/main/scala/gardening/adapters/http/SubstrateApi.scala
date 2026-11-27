@@ -123,11 +123,12 @@ object SubstrateApi:
       case name         => name
     }
     .withTransformConstructorNames(lowerCamel)
-  private given TapirConfiguration = TapirConfiguration.default.copy(toEncodedName = {
+  private def substrateFieldName(field: String): String = field match
     case "maybeInfo"  => "info"
     case "maybeNotes" => "notes"
     case name         => name
-  })
+
+  private given TapirConfiguration = TapirConfiguration.default.copy(toEncodedName = substrateFieldName)
 
   private given Codec[SubstrateComponentName] =
     Codec.from(Decoder.decodeString.map(SubstrateComponentName.apply), Encoder.encodeString.contramap(_.value))

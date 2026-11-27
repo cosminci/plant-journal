@@ -1,6 +1,7 @@
 package gardening.adapters.http
 
 import cats.syntax.either.*
+import cats.syntax.option.*
 import gardening.domain.*
 import gardening.domain.substrate.{AddSubstrateComponentResult, DeleteSubstrateMixResult, GetSubstrateComponentsResult, GetSubstrateMixesResult, SubstrateComponentUpdateResult}
 import gardening.usecases.{AddSubstrateMixResult, SubstrateCatalog}
@@ -169,7 +170,8 @@ object SubstrateApi:
   // JSON bodies use Circe; Tapir does not invoke these enum schema mappings at runtime.
   // $COVERAGE-OFF$
   private given Schema[SubstrateComponentStatus] =
-    Schema.derivedEnumeration[SubstrateComponentStatus].apply(encode = Some(value => lowerCamel(value.productPrefix)))
+    val encode: SubstrateComponentStatus => String = value => lowerCamel(value.productPrefix)
+    Schema.derivedEnumeration[SubstrateComponentStatus].apply(encode = encode.some)
   // $COVERAGE-ON$
   private given Schema[SubstrateComponentData] = Schema.derived[SubstrateComponentData]
     .modify(_.maybeInfo)(_.copy(isOptional = false).nullable)

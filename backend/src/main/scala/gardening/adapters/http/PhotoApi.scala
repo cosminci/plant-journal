@@ -2,6 +2,7 @@ package gardening.adapters.http
 
 import cats.syntax.either.*
 import cats.syntax.eq.*
+import cats.syntax.option.*
 import gardening.domain.*
 import gardening.domain.plants.*
 import gardening.usecases.PhotoManager
@@ -124,8 +125,8 @@ object PhotoApi:
   private def sniffPhotoMediaType(bytes: Array[Byte]): Option[PhotoMediaType] =
     def prefixMatches(signature: Int*): Boolean =
       bytes.length >= signature.size && bytes.take(signature.size).map(_ & 0xff).toSeq === signature.toSeq
-    if prefixMatches(0xff, 0xd8) then Some(PhotoMediaType.Jpeg)
-    else if prefixMatches(0x89, 0x50, 0x4e, 0x47) then Some(PhotoMediaType.Png)
+    if prefixMatches(0xff, 0xd8) then PhotoMediaType.Jpeg.some
+    else if prefixMatches(0x89, 0x50, 0x4e, 0x47) then PhotoMediaType.Png.some
     else None
 
   extension (result: AddPhotoResult)

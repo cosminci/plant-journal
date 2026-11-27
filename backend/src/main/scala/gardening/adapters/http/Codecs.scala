@@ -1,5 +1,6 @@
 package gardening.adapters.http
 
+import cats.syntax.option.*
 import gardening.domain.*
 import io.circe.derivation.{Configuration as CirceConfiguration, ConfiguredCodec}
 import io.circe.{Codec, Decoder, Encoder}
@@ -22,7 +23,7 @@ private[http] object Codecs:
   given TapirConfiguration =
     TapirConfiguration.default.copy(
       toEncodedName = encodedFieldName,
-      discriminator = Some("kind"),
+      discriminator = "kind".some,
       toDiscriminatorValue = name => lowerCamel(name.fullName.split('.').last.stripSuffix("$"))
     )
 
@@ -63,7 +64,9 @@ private[http] object Codecs:
     .map(parts => Substrate.of(parts).toOption)(_.parts)
   // $COVERAGE-ON$
 
-  inline def enumSchema[A <: Product]: Schema[A] = Schema.derivedEnumeration[A].apply(encode = Some(value => lowerCamel(value.productPrefix)))
+  inline def enumSchema[A <: Product]: Schema[A] =
+    val encode: A => String = value => lowerCamel(value.productPrefix)
+    Schema.derivedEnumeration[A].apply(encode = encode.some)
 
   private def encodedFieldName(name: String) =
     name match

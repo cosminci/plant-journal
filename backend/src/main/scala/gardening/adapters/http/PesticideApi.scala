@@ -1,6 +1,7 @@
 package gardening.adapters.http
 
 import cats.syntax.either.*
+import cats.syntax.option.*
 import gardening.domain.*
 import gardening.domain.pesticide.{AddPesticideResult, GetPesticidesResult, PesticideUpdateResult}
 import gardening.usecases.PesticideCatalog
@@ -103,9 +104,13 @@ object PesticideApi:
 
   // JSON bodies use Circe; Tapir does not invoke these identifier schema mappings at runtime.
   // $COVERAGE-OFF$
-  private given Schema[PesticideId]     = Schema.string.map(PesticideId.parse)(_.value.toString).format("uuid")
-  private given Schema[PesticideType]   = Schema.derivedEnumeration[PesticideType].apply(encode = Some(value => lowerCamel(value.productPrefix)))
-  private given Schema[PesticideStatus] = Schema.derivedEnumeration[PesticideStatus].apply(encode = Some(value => lowerCamel(value.productPrefix)))
+  private given Schema[PesticideId]   = Schema.string.map(PesticideId.parse)(_.value.toString).format("uuid")
+  private given Schema[PesticideType] =
+    val encode: PesticideType => String = value => lowerCamel(value.productPrefix)
+    Schema.derivedEnumeration[PesticideType].apply(encode = encode.some)
+  private given Schema[PesticideStatus] =
+    val encode: PesticideStatus => String = value => lowerCamel(value.productPrefix)
+    Schema.derivedEnumeration[PesticideStatus].apply(encode = encode.some)
   // $COVERAGE-ON$
   private given Schema[PesticideName] = Schema.string
   private given Schema[PesticideInfo] = Schema.string

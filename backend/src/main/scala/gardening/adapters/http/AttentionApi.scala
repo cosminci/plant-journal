@@ -1,5 +1,6 @@
 package gardening.adapters.http
 
+import cats.syntax.option.*
 import gardening.domain.PlantId
 import gardening.domain.attention.*
 import gardening.usecases.PlantAttentionMonitor
@@ -81,7 +82,7 @@ object AttentionApi:
   private given tapirConfiguration: TapirConfiguration =
     TapirConfiguration.default.copy(
       toEncodedName = encodedFieldName,
-      discriminator = Some("kind"),
+      discriminator = "kind".some,
       // Only OpenAPI generation translates Tapir's discriminator names.
       // $COVERAGE-OFF$
       toDiscriminatorValue = name => lowerCamel(name.fullName.split('.').last.stripSuffix("$"))

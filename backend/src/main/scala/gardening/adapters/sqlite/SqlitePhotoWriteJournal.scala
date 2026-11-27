@@ -1,5 +1,6 @@
 package gardening.adapters.sqlite
 
+import cats.syntax.either.*
 import cats.syntax.traverse.*
 import com.augustnagro.magnum.*
 import gardening.domain.*
@@ -80,7 +81,7 @@ object SqlitePhotoWriteJournal:
             case "Remove" => toRemoveIntent(row, status)
             // A CHECK constraint on this column makes every other stored value unreachable.
             // $COVERAGE-OFF$
-            case other => Left(RuntimeException(s"invalid stored photo write intent operation: $other"))
+            case other => RuntimeException(s"invalid stored photo write intent operation: $other").asLeft
             // $COVERAGE-ON$
 
     private def toAddIntent(row: PhotoWriteIntentRow, status: PhotoWriteIntentStatus): Either[Throwable, PhotoWriteIntent] =
@@ -99,11 +100,11 @@ object SqlitePhotoWriteJournal:
       maybeColumnValue.toRight(RuntimeException(message))
 
     private def parseWriteStatus(value: String): Either[Throwable, PhotoWriteIntentStatus] = value match
-      case "Pending" => Right(PhotoWriteIntentStatus.Pending)
-      case "Done"    => Right(PhotoWriteIntentStatus.Done)
+      case "Pending" => PhotoWriteIntentStatus.Pending.asRight
+      case "Done"    => PhotoWriteIntentStatus.Done.asRight
       // A CHECK constraint on this column makes every other stored value unreachable.
       // $COVERAGE-OFF$
-      case other => Left(RuntimeException(s"invalid stored photo write intent status: $other"))
+      case other => RuntimeException(s"invalid stored photo write intent status: $other").asLeft
       // $COVERAGE-ON$
 
     private def parsePhotoId(value: String): Either[Throwable, PhotoId] =

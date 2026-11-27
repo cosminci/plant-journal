@@ -53,9 +53,9 @@ object SqlitePesticideStore:
 
     private def toPesticide(row: PesticideRow) =
       for
-        id <- PesticideId.parse(row.id).toRight(RuntimeException(s"invalid pesticide id: ${row.id}"))
-        kind   = trust(Try(PesticideType.valueOf(row.kind)).toEither)
-        status = trust(Try(PesticideStatus.valueOf(row.status)).toEither)
+        id     <- PesticideId.parse(row.id).toRight(RuntimeException(s"invalid pesticide id: ${row.id}"))
+        kind   <- Try(PesticideType.valueOf(row.kind)).toEither
+        status <- Try(PesticideStatus.valueOf(row.status)).toEither
       yield Pesticide(id, PesticideData(PesticideName(row.name), kind, row.maybeInfo.map(PesticideInfo.apply)), status)
 
   private case class PesticideRow(id: String, name: String, kind: String, maybeInfo: Option[String], status: String) derives DbCodec

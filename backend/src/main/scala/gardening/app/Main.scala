@@ -35,7 +35,7 @@ object Main:
     PrometheusAttentionFeedMetrics.register(registry, feedHeartbeats)
     PrometheusStorageMetrics.register(registry, Paths.get(config.storage.dbPath), config.storage.photosDir)
 
-    val outcome = Using.resource(AppResources.acquire(SqliteLocation.File(config.storage.dbPath), config.storage.lockTimeout)): resources =>
+    val serverResult = Using.resource(AppResources.acquire(SqliteLocation.File(config.storage.dbPath), config.storage.lockTimeout)): resources =>
       supervisedError(EitherMode[Throwable]()):
         val _         = Flyway.configure().dataSource(resources.dataSource).load().migrate()
         val programs  = Programs.make(resources, config, registry)
@@ -53,5 +53,5 @@ object Main:
         log.info(s"gardening backend starting on host=${config.server.host} port=${config.server.port}")
         NettySyncServer(serverOptions).host(config.server.host).port(config.server.port).addEndpoints(endpoints).startAndWait().asRight
 
-    outcome.left.foreach(log.error("startup", _))
-    if outcome.isLeft then sys.exit(1)
+    serverResult.left.foreach(log.error("startup", _))
+    if serverResult.isLeft then sys.exit(1)

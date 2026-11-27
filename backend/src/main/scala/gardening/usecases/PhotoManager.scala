@@ -39,7 +39,7 @@ object PhotoManager:
   )(using log: Logger^) extends PhotoManager:
 
     override def addPhoto(plant: PlantId, content: PhotoContent, idempotencyKey: String): AddPhotoResult =
-      val outcome =
+      val addResult =
         for
           _       <- rejectExistingIntent(idempotencyKey)
           derived <- deriveThumbnail(content)
@@ -48,7 +48,7 @@ object PhotoManager:
           _       <- writeContent(photo, content, derived, idempotencyKey)
           added   <- persistMetadata(photo, content, idempotencyKey)
         yield added
-      outcome.merge
+      addResult.merge
 
     private def rejectExistingIntent(key: String): Either[AddPhotoResult, Unit] =
       journal.findByKey(key) match
@@ -100,13 +100,13 @@ object PhotoManager:
           compensateContentDeleteAfterAddFailed(photo.id, reason).asLeft
 
     override def removePhoto(photo: PhotoId): RemovePhotoResult =
-      val outcome =
+      val removalResult =
         for
           _       <- recordRemoveIntent(photo)
           removed <- removeMetadata(photo)
           result  <- deleteContent(photo, removed)
         yield result
-      outcome.merge
+      removalResult.merge
 
     private def recordRemoveIntent(photo: PhotoId): Either[RemovePhotoResult, Unit] =
       journal.recordRemove(photo) match

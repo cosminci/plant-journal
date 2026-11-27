@@ -85,7 +85,7 @@ object SqlitePlantStore:
         status <- PlantStatus.values.find(_.toString.equals(row.status)).toRight(RuntimeException(s"invalid state: ${row.status}"))
       // $COVERAGE-ON$
       yield
-        val details = PlantDetails(Species(row.species), row.nickname.map(Nickname.apply), Location(row.location), substrate, status)
+        val details = PlantDetails(Species(row.species), row.maybeNickname.map(Nickname.apply), Location(row.location), substrate, status)
         Plant(PlantId(row.id), details)
 
     override def getAttentionSamples(size: WateringSampleSize): GetAttentionSamplesResult =
@@ -139,7 +139,7 @@ object SqlitePlantStore:
                 status = ${details.status.toString}
             where id = ${plant.id.value} and (status = ${details.status.toString} or (status = 'Active' and ${details.status.toString} = 'Archived'))"""
 
-  private case class PlantRow(id: String, species: String, nickname: Option[String], location: String, substrate: String, status: String)
+  private case class PlantRow(id: String, species: String, maybeNickname: Option[String], location: String, substrate: String, status: String)
       derives DbCodec
 
   private case class AttentionSampleRow(id: String, wateringDates: String) derives DbCodec

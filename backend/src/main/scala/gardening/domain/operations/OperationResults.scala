@@ -15,7 +15,8 @@ enum GetOperationsResult:
   case ReadFailed(reason: Throwable)
 
 enum GetLatestRepotResult:
-  case Read(operation: Option[Operation])
+  case Found(operation: Operation)
+  case NotRecorded
   case ReadFailed(reason: Throwable)
 
 enum LogOperationResult:

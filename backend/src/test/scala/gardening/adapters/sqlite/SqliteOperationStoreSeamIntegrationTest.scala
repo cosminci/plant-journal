@@ -78,17 +78,21 @@ class SqliteOperationStoreSeamIntegrationTest extends FunSuite:
       val dataSource     = resource.dataSource
       val operationStore = resource.operationStore
       seedPlant(dataSource, id = "p1")
+      seedPlant(dataSource, id = "no-repots")
       val careOp      = Operation(OperationId("o0"), PlantId("p1"), date.plusSeconds(120), care)
+      val careOnly    = Operation(OperationId("care-only"), PlantId("no-repots"), date, care)
       val olderRepot  = Operation(OperationId("o1"), PlantId("p1"), date, OperationDetails.Repot(sand3to5Substrate, none))
       val tiedRepot   = Operation(OperationId("o2"), PlantId("p1"), date.plusSeconds(60), OperationDetails.Repot(lecaSubstrate, none))
       val latestRepot = Operation(OperationId("o3"), PlantId("p1"), date.plusSeconds(60), OperationDetails.Repot(perliteSubstrate, none))
-      List(careOp, olderRepot, tiedRepot, latestRepot).foreach(operationStore.addOperation)
+      List(careOp, careOnly, olderRepot, tiedRepot, latestRepot).foreach(operationStore.addOperation)
 
       val found   = operationStore.getLatestRepot(PlantId("p1"))
+      val noRepot = operationStore.getLatestRepot(PlantId("no-repots"))
       val missing = operationStore.getLatestRepot(PlantId("no-such-plant"))
 
-      assertEquals(found, GetLatestRepotResult.Read(latestRepot.some))
-      assertEquals(missing, GetLatestRepotResult.Read(none))
+      assertEquals(found, GetLatestRepotResult.Found(latestRepot))
+      assertEquals(noRepot, GetLatestRepotResult.NotRecorded)
+      assertEquals(missing, GetLatestRepotResult.NotRecorded)
 
   test("should read earliest and latest dates across all archived operations without decoding history"):
     Using.resource(storeResource): resource =>

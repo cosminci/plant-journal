@@ -103,13 +103,13 @@ object OperationLedger:
         case repot: OperationDetails.Repot => store.editRepot(operation, repot)
 
     override def deleteOperation(operation: OperationId): DeleteOperationResult = lock.exclusively:
-      val outcome =
+      val deletionResult =
         for
           found   <- readOperation(operation)
           _       <- rejectLatestRepot(found)
           deleted <- deleteFromStore(found.id)
         yield deleted.tap(_ => log.info(s"operation deleted $found"))
-      outcome.merge
+      deletionResult.merge
 
     private def readOperation(operation: OperationId): Either[DeleteOperationResult, Operation] =
       store.getOperation(operation) match
@@ -174,7 +174,8 @@ object OperationLedger:
 
     private def isLatestRepot(operation: Operation): Either[Throwable, Boolean] =
       store.getLatestRepot(operation.plantId) match
-        case GetLatestRepotResult.Read(found)        => found.exists(_.id.value.equals(operation.id.value)).asRight
+        case GetLatestRepotResult.Found(found)       => found.id.value.equals(operation.id.value).asRight
+        case GetLatestRepotResult.NotRecorded        => false.asRight
         case GetLatestRepotResult.ReadFailed(reason) => reason.asLeft
 
     private def sameType(first: OperationDetails, second: OperationDetails) =

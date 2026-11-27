@@ -80,11 +80,12 @@ object PesticideApi:
     case name        => name
   }.withTransformConstructorNames(lowerCamel)
 
-  private given TapirConfiguration = TapirConfiguration.default.copy(toEncodedName = {
+  private def pesticideFieldName(field: String): String = field match
     case "maybeInfo" => "info"
     case "kind"      => "type"
     case name        => name
-  })
+
+  private given TapirConfiguration = TapirConfiguration.default.copy(toEncodedName = pesticideFieldName)
 
   private given Codec[PesticideName] = Codec.from(Decoder.decodeString.map(PesticideName.apply), Encoder.encodeString.contramap(_.value))
   private given Codec[PesticideInfo] = Codec.from(Decoder.decodeString.map(PesticideInfo.apply), Encoder.encodeString.contramap(_.value))

@@ -115,11 +115,11 @@ object PlantApi:
   private given Schema[Json] = Schema.any
 
   private given TapirCodec.PlainCodec[PlantStatus] = TapirCodec.string
-    .mapDecode(value =>
+    .mapDecode { value =>
       PlantStatus.values.find(status => Codecs.lowerCamel(status.toString).equals(value)) match
         case Some(status) => DecodeResult.Value(status)
         case None         => DecodeResult.Error(value, IllegalArgumentException(s"invalid plant status: $value"))
-    )(status => Codecs.lowerCamel(status.toString))
+    }(status => Codecs.lowerCamel(status.toString))
     .schema(Codecs.enumSchema[PlantStatus])
 
   private given Schema[PlantStatus] = Codecs.enumSchema[PlantStatus]

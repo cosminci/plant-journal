@@ -87,7 +87,7 @@ object SubstrateCatalog:
       store.getSubstrateMixes match
         case GetSubstrateMixesResult.ReadFailed(reason) => AddSubstrateMixResult.AddFailed(reason).tap(_ => log.error("add substrate mix", reason))
         case GetSubstrateMixesResult.Read(mixes) if mixes.exists(sameComposition(_, substrate)) => AddSubstrateMixResult.DuplicateSubstrate
-        case GetSubstrateMixesResult.Read(_)                                                    =>
+        case _: GetSubstrateMixesResult.Read                                                    =>
           val mix = SubstrateMix(UUID.fromString(idGen.nextId()), name, maybeNotes, substrate)
           store.saveSubstrateMix(mix) match
             case SaveSubstrateMixResult.Saved(entry)       => AddSubstrateMixResult.Added(entry).tap(_ => log.info(s"substrate mix added $entry"))

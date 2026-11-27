@@ -44,23 +44,23 @@ object PhotoWriteRecovery:
       case PhotoWriteIntentStatus.Done    => discard(intent.key)
       case PhotoWriteIntentStatus.Pending =>
         (contentStore.get(intent.photoId, PhotoVariant.Original), contentStore.get(intent.photoId, PhotoVariant.Thumbnail)) match
-          case (PhotoReadResult.Read(_), PhotoReadResult.Read(_)) => finishAdd(intent)
+          case (_: PhotoReadResult.Read, _: PhotoReadResult.Read) => finishAdd(intent)
           case _                                                  => discardPartialContent(intent.key, intent.photoId)
 
     private def finishAdd(intent: PhotoWriteIntent.Add): Unit =
       store.addPhoto(PlantPhoto(intent.photoId, intent.plantId, intent.capturedAt)) match
-        case AddPhotoResult.Added(_) =>
+        case _: AddPhotoResult.Added =>
           journal.markDone(intent.key) match
             case PhotoJournalWriteResult.Recorded             => ()
             case PhotoJournalWriteResult.RecordFailed(reason) => log.error("mark photo write intent done", reason)
-        case AddPhotoResult.PlantMissing | AddPhotoResult.AddFailed(_) => discardPartialContent(intent.key, intent.photoId)
+        case AddPhotoResult.PlantMissing | _: AddPhotoResult.AddFailed => discardPartialContent(intent.key, intent.photoId)
 
     // Metadata delete runs before content delete in the live path, so PhotoMissing here means the
     // delete already fully landed on a previous run; either way, calling it again is exactly what
     // finishes an interrupted removal, and is a no-op if it already completed.
     private def reconcileRemove(intent: PhotoWriteIntent.Remove): Unit =
       store.removePhoto(intent.photoId) match
-        case RemovePhotoResult.Removed(_) | RemovePhotoResult.PhotoMissing =>
+        case _: RemovePhotoResult.Removed | RemovePhotoResult.PhotoMissing =>
           contentStore.delete(intent.photoId) match
             case PhotoWriteResult.Written             => discard(intent.key)
             case PhotoWriteResult.WriteFailed(reason) => log.error("recover photo removal content cleanup", reason)

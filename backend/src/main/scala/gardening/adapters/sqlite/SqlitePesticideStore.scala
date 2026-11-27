@@ -30,19 +30,19 @@ object SqlitePesticideStore:
 
     override def addPesticide(pesticide: Pesticide): AddPesticideResult =
       try
-        val (id, data)           = (pesticide.id.value.toString, pesticide.data)
-        val (name, status, info) = (data.name.value, pesticide.status.toString, data.maybeInfo.map(_.value))
+        val (id, data)                = (pesticide.id.value.toString, pesticide.data)
+        val (name, status, maybeInfo) = (data.name.value, pesticide.status.toString, data.maybeInfo.map(_.value))
         transact(transactor):
-          val query = sql"insert into pesticide (id, name, type, info, status) values ($id, $name, ${data.kind.toString}, $info, $status)"
+          val query = sql"insert into pesticide (id, name, type, info, status) values ($id, $name, ${data.kind.toString}, $maybeInfo, $status)"
           query.update.run()
         AddPesticideResult.Added(pesticide)
       catch case error: SqlException => AddPesticideResult.AddFailed(error)
 
     override def updatePesticide(pesticide: Pesticide): UpdatePesticideResult =
       try
-        val data                     = pesticide.data
-        val (id, name, status, info) = (pesticide.id.value.toString, data.name.value, pesticide.status.toString, data.maybeInfo.map(_.value))
-        val command = sql"""update pesticide set name = $name, type = ${data.kind.toString}, info = $info, status = $status where id = $id"""
+        val data                          = pesticide.data
+        val (id, name, status, maybeInfo) = (pesticide.id.value.toString, data.name.value, pesticide.status.toString, data.maybeInfo.map(_.value))
+        val command = sql"""update pesticide set name = $name, type = ${data.kind.toString}, info = $maybeInfo, status = $status where id = $id"""
         transact(transactor)(command.update.run()) match
           case 1 => UpdatePesticideResult.Updated
           case _ => UpdatePesticideResult.UpdateFailed(RuntimeException(s"pesticide not found while updating: ${pesticide.id.value}"))
@@ -56,6 +56,6 @@ object SqlitePesticideStore:
         id <- PesticideId.parse(row.id).toRight(RuntimeException(s"invalid pesticide id: ${row.id}"))
         kind   = trust(Try(PesticideType.valueOf(row.kind)).toEither)
         status = trust(Try(PesticideStatus.valueOf(row.status)).toEither)
-      yield Pesticide(id, PesticideData(PesticideName(row.name), kind, row.info.map(PesticideInfo.apply)), status)
+      yield Pesticide(id, PesticideData(PesticideName(row.name), kind, row.maybeInfo.map(PesticideInfo.apply)), status)
 
-  private case class PesticideRow(id: String, name: String, kind: String, info: Option[String], status: String) derives DbCodec
+  private case class PesticideRow(id: String, name: String, kind: String, maybeInfo: Option[String], status: String) derives DbCodec

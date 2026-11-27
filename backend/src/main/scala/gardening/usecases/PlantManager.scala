@@ -76,13 +76,13 @@ object PlantManager:
       plant.id -> plant.details.maybeNickname.map(_.value).getOrElse(plant.details.species.value)
 
     override def editPlant(plant: PlantId, revise: PlantDetails => PlantDetails): EditPlantResult = lock.exclusively:
-      val outcome =
+      val editResult =
         for
           edited <- readAndRevise(plant, revise)
           _      <- rejectUnknownSubstrate(edited.details.substrate)
           saved  <- persistEdit(edited)
         yield saved
-      outcome.fold(identity, EditPlantResult.Edited.apply).tap:
+      editResult.fold(identity, EditPlantResult.Edited.apply).tap:
         case EditPlantResult.Edited(edited) => log.info(s"plant edited $edited")
         case _                              => ()
 

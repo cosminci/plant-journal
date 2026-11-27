@@ -53,10 +53,10 @@ object SqlitePhotoWriteJournal:
 
     override def findByKey(key: String): PhotoJournalFindResult =
       try
-        val row = connect(transactor):
+        val maybeIntentRow = connect(transactor):
           sql"select key, operation, status, photo_id, plant_id, captured_at from photo_write_intent where key = $key"
             .query[PhotoWriteIntentRow].run().headOption
-        row match
+        maybeIntentRow match
           case None      => PhotoJournalFindResult.NotFound
           case Some(row) => PhotoJournalFindResult.Found(trust(toIntent(row)))
       catch
@@ -85,18 +85,18 @@ object SqlitePhotoWriteJournal:
 
     private def toAddIntent(row: PhotoWriteIntentRow, status: PhotoWriteIntentStatus): Either[Throwable, PhotoWriteIntent] =
       for
-        plantId    <- requireColumn(row.plantId, s"add photo write intent ${row.key} is missing plant_id").map(PlantId.apply)
-        capturedAt <- requireColumn(row.capturedAt, s"add photo write intent ${row.key} is missing captured_at").flatMap(parseCapturedAt)
-        photoId    <- requireColumn(row.photoId, s"add photo write intent ${row.key} is missing photo_id").flatMap(parsePhotoId)
+        plantId    <- requireColumn(row.maybePlantId, s"add photo write intent ${row.key} is missing plant_id").map(PlantId.apply)
+        capturedAt <- requireColumn(row.maybeCapturedAt, s"add photo write intent ${row.key} is missing captured_at").flatMap(parseCapturedAt)
+        photoId    <- requireColumn(row.maybePhotoId, s"add photo write intent ${row.key} is missing photo_id").flatMap(parsePhotoId)
       yield PhotoWriteIntent.Add(row.key, status, plantId, capturedAt, photoId)
 
     private def toRemoveIntent(row: PhotoWriteIntentRow, status: PhotoWriteIntentStatus): Either[Throwable, PhotoWriteIntent] =
-      requireColumn(row.photoId, s"remove photo write intent ${row.key} is missing photo_id")
+      requireColumn(row.maybePhotoId, s"remove photo write intent ${row.key} is missing photo_id")
         .flatMap(parsePhotoId)
         .map(PhotoWriteIntent.Remove(row.key, status, _))
 
-    private def requireColumn(value: Option[String], message: String): Either[Throwable, String] =
-      value.toRight(RuntimeException(message))
+    private def requireColumn(maybeColumnValue: Option[String], message: String): Either[Throwable, String] =
+      maybeColumnValue.toRight(RuntimeException(message))
 
     private def parseWriteStatus(value: String): Either[Throwable, PhotoWriteIntentStatus] = value match
       case "Pending" => Right(PhotoWriteIntentStatus.Pending)
@@ -116,7 +116,7 @@ object SqlitePhotoWriteJournal:
       key: String,
       operation: String,
       status: String,
-      photoId: Option[String],
-      plantId: Option[String],
-      capturedAt: Option[String]
+      maybePhotoId: Option[String],
+      maybePlantId: Option[String],
+      maybeCapturedAt: Option[String]
   ) derives DbCodec

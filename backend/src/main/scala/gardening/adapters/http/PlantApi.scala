@@ -86,8 +86,9 @@ object PlantApi:
         plants.getArchivedCount match
           case ArchivedCountResult.Counted(count) => ArchivedPlantCount(count).asRight
           case _: ArchivedCountResult.ReadFailed  => (StatusCode.InternalServerError, ApiError("archived count could not be read")).asLeft,
-      patchPlantEndpoint.handle: (plantId, contentType, patch) =>
-        val isJsonPatch = contentType.exists(mediaType => mediaType.mainType.equals("application") && mediaType.subType.equals("json-patch+json"))
+      patchPlantEndpoint.handle: (plantId, maybeContentType, patch) =>
+        val isJsonPatch =
+          maybeContentType.exists(mediaType => mediaType.mainType.equals("application") && mediaType.subType.equals("json-patch+json"))
         if !isJsonPatch then unsupportedPatchMediaType.asLeft
         else
           patch match

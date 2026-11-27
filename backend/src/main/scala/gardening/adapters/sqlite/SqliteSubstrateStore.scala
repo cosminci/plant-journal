@@ -37,10 +37,10 @@ object SqliteSubstrateStore:
 
     override def addSubstrateComponent(component: SubstrateComponent): AddSubstrateComponentResult =
       try
-        val info = component.data.maybeInfo.map(_.value)
-        val row  = ComponentRow(component.id.value.toString, component.data.name.value, info, component.status.toString)
+        val maybeInfo = component.data.maybeInfo.map(_.value)
+        val row       = ComponentRow(component.id.value.toString, component.data.name.value, maybeInfo, component.status.toString)
         transact(transactor):
-          sql"insert into substrate_component (id, name, info, status) values (${row.id}, ${row.name}, ${row.info}, ${row.status})".update.run()
+          sql"insert into substrate_component (id, name, info, status) values (${row.id}, ${row.name}, ${row.maybeInfo}, ${row.status})".update.run()
         AddSubstrateComponentResult.Added(component)
       catch case error: SqlException => AddSubstrateComponentResult.AddFailed(error)
 
@@ -64,7 +64,7 @@ object SqliteSubstrateStore:
       for
         id <- SubstrateComponentId.parse(row.id).toRight(RuntimeException(s"invalid substrate component id: ${row.id}"))
         status = trust(Try(SubstrateComponentStatus.valueOf(row.status)).toEither)
-      yield SubstrateComponent(id, SubstrateComponentData(SubstrateComponentName(row.name), row.info.map(SubstrateComponentInfo.apply)), status)
+      yield SubstrateComponent(id, SubstrateComponentData(SubstrateComponentName(row.name), row.maybeInfo.map(SubstrateComponentInfo.apply)), status)
 
     override def getSubstrateMixes: GetSubstrateMixesResult =
       try
@@ -77,7 +77,7 @@ object SqliteSubstrateStore:
       try
         val row = MixRow(mix.id.toString, mix.name.value, mix.maybeNotes.map(_.value), mix.substrate.asJson.noSpaces)
         transact(transactor):
-          sql"insert into substrate_mix (id, name, notes, substrate) values (${row.id}, ${row.name}, ${row.notes}, ${row.substrate})".update.run()
+          sql"insert into substrate_mix (id, name, notes, substrate) values (${row.id}, ${row.name}, ${row.maybeNotes}, ${row.substrate})".update.run()
         SaveSubstrateMixResult.Saved(mix)
       catch case error: SqlException => SaveSubstrateMixResult.SaveFailed(error)
 
@@ -91,7 +91,7 @@ object SqliteSubstrateStore:
       for
         id        <- Try(UUID.fromString(row.id)).toEither.leftMap(_ => RuntimeException(s"invalid substrate mix id: ${row.id}"))
         substrate <- decode[Substrate](row.substrate).leftMap(invalidSubstrate)
-      yield SubstrateMix(id, SubstrateMixName(row.name), row.notes.map(SubstrateMixNotes.apply), substrate)
+      yield SubstrateMix(id, SubstrateMixName(row.name), row.maybeNotes.map(SubstrateMixNotes.apply), substrate)
 
     private def invalidSubstrate(reason: io.circe.Error) =
       RuntimeException(s"invalid stored substrate mix substrate: ${reason.getMessage}", reason)
@@ -109,5 +109,5 @@ object SqliteSubstrateStore:
     private given Decoder[Substrate] = Decoder.decodeList[SubstratePart].emap(parts => Substrate.of(parts).leftMap(_.toString))
     private given Encoder[Substrate] = Encoder.encodeList[SubstratePart].contramap(_.parts)
 
-  private case class ComponentRow(id: String, name: String, info: Option[String], status: String) derives DbCodec
-  private case class MixRow(id: String, name: String, notes: Option[String], substrate: String) derives DbCodec
+  private case class ComponentRow(id: String, name: String, maybeInfo: Option[String], status: String) derives DbCodec
+  private case class MixRow(id: String, name: String, maybeNotes: Option[String], substrate: String) derives DbCodec

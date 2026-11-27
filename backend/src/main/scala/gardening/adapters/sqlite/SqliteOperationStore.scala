@@ -40,12 +40,12 @@ object SqliteOperationStore:
                 left join operation on operation.plant_id = plant.id
                 where plant.id = ${plant.value}""".query[OperationDateRow].run()
 
-        val result =
+        val dateRangeResult =
           for
             _      <- rows.headOption.toRight(GetOperationDateRangeResult.PlantMissing)
-            parsed <- rows.flatMap(_.date).traverse(parseOperationDate).left.map(GetOperationDateRangeResult.ReadFailed.apply)
+            parsed <- rows.flatMap(_.maybeDate).traverse(parseOperationDate).left.map(GetOperationDateRangeResult.ReadFailed.apply)
           yield GetOperationDateRangeResult.Read(OperationDateRange.Recorded.from(parsed.toList))
-        result.merge
+        dateRangeResult.merge
 
       catch case error: SqlException => GetOperationDateRangeResult.ReadFailed(error)
 
@@ -58,8 +58,9 @@ object SqliteOperationStore:
 
     override def getLatestRepot(plant: PlantId): GetLatestRepotResult =
       try
-        val row = connect(transactor)(selectLatestRepot(plant.value).query[OperationRow].run().headOption)
-        GetLatestRepotResult.Read(row.map(r => trust(toOperation(r))))
+        connect(transactor)(selectLatestRepot(plant.value).query[OperationRow].run().headOption) match
+          case Some(row) => GetLatestRepotResult.Found(trust(toOperation(row)))
+          case None      => GetLatestRepotResult.NotRecorded
       catch case error: SqlException => GetLatestRepotResult.ReadFailed(error)
 
     private def selectLatestRepot(plantId: String) =
@@ -185,8 +186,8 @@ object SqliteOperationStore:
 
     private given Decoder[OperationDetails.Care] =
       Decoder.forProduct4("actions", "pesticides", "moisture", "note"):
-        (actions: List[ActionType], pesticides: List[PesticideId], moisture: MoistureLevel, note: Option[Note]) =>
-          OperationDetails.Care(actions.toSet, pesticides.toSet, moisture, note)
+        (actions: List[ActionType], pesticides: List[PesticideId], moisture: MoistureLevel, maybeNote: Option[Note]) =>
+          OperationDetails.Care(actions.toSet, pesticides.toSet, moisture, maybeNote)
 
     private given Encoder[OperationDetails.Care] =
       Encoder.forProduct4("actions", "pesticides", "moisture", "note"): care =>
@@ -199,4 +200,4 @@ object SqliteOperationStore:
       Encoder.forProduct2("substrate", "note")(repot => (repot.substrate, repot.maybeNote))
 
   private case class OperationRow(id: String, plantId: String, date: String, kind: String, payload: String) derives DbCodec
-  private case class OperationDateRow(date: Option[String]) derives DbCodec
+  private case class OperationDateRow(maybeDate: Option[String]) derives DbCodec

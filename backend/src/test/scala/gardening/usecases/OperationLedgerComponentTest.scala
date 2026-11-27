@@ -253,7 +253,7 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
     val removeFailure          = RuntimeException("remove failed")
     val existingRepot          = Operation(OperationId("o1"), plant.id, date, repot)
     val getExistingRepotResult = GetOperationResult.Read(existingRepot)
-    val getLatestRepotFailure  = () => GetLatestRepotResult.ReadFailed(latestRepotFailure)
+    val getLatestRepotFailure  = GetLatestRepotResult.ReadFailed(latestRepotFailure)
     val getOperationReadResult = GetOperationResult.Read(operation)
     val removeOperationFailure = OperationCompensationResult.CompensationFailed(removeFailure)
 
@@ -336,7 +336,7 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
     val olderRepot           = Operation(OperationId("o1"), plant.id, date, repot)
     val newerRepot           = Operation(OperationId("o2"), plant.id, date.plusSeconds(60), repot)
     val getOperationResult   = GetOperationResult.Read(olderRepot)
-    val getLatestRepotResult = () => GetLatestRepotResult.Read(newerRepot.some)
+    val getLatestRepotResult = GetLatestRepotResult.Found(newerRepot)
     val refs                 = Refs()
 
     val ledger = buildLedger(refs, getOperationResult = getOperationResult, getLatestRepotResult = getLatestRepotResult)
@@ -347,7 +347,7 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
   test("should reject deleting a plant's latest repot"):
     val onlyRepot            = Operation(OperationId("o1"), plant.id, date, repot)
     val getOperationResult   = GetOperationResult.Read(onlyRepot)
-    val getLatestRepotResult = () => GetLatestRepotResult.Read(onlyRepot.some)
+    val getLatestRepotResult = GetLatestRepotResult.Found(onlyRepot)
     val refs                 = Refs()
 
     val ledger = buildLedger(refs, getOperationResult = getOperationResult, getLatestRepotResult = getLatestRepotResult)
@@ -360,7 +360,7 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
     val getOperationResult = GetOperationResult.Read(orphanRepot)
     val refs               = Refs()
 
-    val ledger = buildLedger(refs, getOperationResult = getOperationResult)
+    val ledger = buildLedger(refs, getOperationResult = getOperationResult, getLatestRepotResult = GetLatestRepotResult.NotRecorded)
 
     assertEquals(ledger.deleteOperation(orphanRepot.id), DeleteOperationResult.Deleted)
     assertEquals(refs.removedOperations.get(), Vector(orphanRepot.id))
@@ -379,7 +379,7 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
       getPlantResult: GetPlantResult = GetPlantResult.Read(plant),
       getOperationsResult: GetOperationsResult = GetOperationsResult.Read(OperationPage(Vector.empty, hasNextPage = false)),
       operationDateRangeResult: GetOperationDateRangeResult = GetOperationDateRangeResult.Read(OperationDateRange.Empty),
-      getLatestRepotResult: () => GetLatestRepotResult = () => GetLatestRepotResult.Read(none),
+      getLatestRepotResult: GetLatestRepotResult = GetLatestRepotResult.NotRecorded,
       getOperationResult: GetOperationResult = GetOperationResult.Read(operation),
       addOperationResult: AddOperationResult = AddOperationResult.Logged(OperationId("id-1")),
       logRepotResult: AddOperationResult = AddOperationResult.Logged(OperationId("id-1")),
@@ -401,7 +401,7 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
         refs.requestedOperationWindows.updateAndGet(_ :+ (plant -> window)).pipe(_ => getOperationsResult)
       override def getOperationDateRange(plant: PlantId): GetOperationDateRangeResult =
         refs.requestedDateRanges.updateAndGet(_ :+ plant).pipe(_ => operationDateRangeResult)
-      override def getLatestRepot(plant: PlantId): GetLatestRepotResult     = getLatestRepotResult()
+      override def getLatestRepot(plant: PlantId): GetLatestRepotResult     = getLatestRepotResult
       override def getOperation(operation: OperationId): GetOperationResult = getOperationResult
       override def addOperation(operation: Operation): AddOperationResult   =
         refs.recordedOperations.updateAndGet(_ :+ operation).pipe(_ => addOperationResult)

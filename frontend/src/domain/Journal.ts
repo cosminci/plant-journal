@@ -118,7 +118,23 @@ export interface PlantDetails {
 export interface Plant {
   readonly id: PlantId;
   readonly details: PlantDetails;
+  readonly registeredAt: Instant;
 }
+
+export interface DormancyPeriod {
+  readonly id: string;
+  readonly startedAt: Instant;
+  readonly endedAt: Instant | null;
+}
+
+export type DormancyEdit =
+  | { readonly kind: "start" | "end"; readonly since: Instant }
+  | { readonly kind: "correctDates"; readonly periods: DormancyPeriod[] };
+
+export type DormancyResult =
+  | { readonly kind: "read"; readonly periods: readonly DormancyPeriod[] }
+  | { readonly kind: "invalid" }
+  | { readonly kind: "failed"; readonly reason: Error };
 
 export type NewPlantDetails = Pick<
   PlantDetails,

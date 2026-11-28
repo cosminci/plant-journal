@@ -8,6 +8,7 @@ export interface GardenHistory {
   readonly kind: "garden";
   readonly plant: Journal.Plant;
   readonly page: Journal.OperationPage;
+  readonly periods: readonly Journal.DormancyPeriod[];
 }
 
 export interface CemeteryHistory {
@@ -31,7 +32,6 @@ interface JournalListProps {
   ) => Promise<Journal.GetOperationsResult>;
   readonly onViewPhotos: (plant: Journal.Plant) => void;
   readonly onLog: (plant: Journal.PlantId) => void;
-  readonly onArchive: (plant: Journal.Plant) => void;
   readonly onEditPlant: (plant: Journal.Plant) => void;
   readonly onEdit: (operation: Journal.Operation) => void;
 }
@@ -61,6 +61,9 @@ export const JournalList: Component<JournalListProps> = (props) => (
               {(entry) => (
                 <PlantCard
                   plant={entry().plant}
+                  dormantSince={
+                    entry().periods.find((period) => period.endedAt === null)?.startedAt
+                  }
                   watering={
                     props.attentionProjection?.plants.find((s) => s.plant === entry().plant.id)
                       ?.watering
@@ -74,9 +77,6 @@ export const JournalList: Component<JournalListProps> = (props) => (
                   onViewPhotos={props.onViewPhotos}
                   onLog={() => {
                     props.onLog(entry().plant.id);
-                  }}
-                  onArchive={() => {
-                    props.onArchive(entry().plant);
                   }}
                   onEditPlant={props.onEditPlant}
                   onEdit={props.onEdit}

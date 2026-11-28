@@ -8,6 +8,7 @@ describe("plant search filtering", () => {
     kind: "garden",
     plant: {
       id: Journal.plantId(id),
+      registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
       details: {
         species: Journal.species("Ficus"),
         maybeNickname: null,
@@ -18,6 +19,7 @@ describe("plant search filtering", () => {
       },
     },
     page: { operations: [], hasNextPage: false },
+    periods: [],
   });
 
   it("should show every plant for a blank or whitespace-only query", () => {

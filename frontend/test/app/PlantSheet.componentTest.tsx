@@ -434,6 +434,7 @@ describe("PlantSheet", () => {
   it("should prefill and submit revised details for an active plant", () => {
     const plant: Journal.Plant = {
       id: Journal.plantId("p1"),
+      registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
       details: {
         species: Journal.species("Ficus lyrata"),
         maybeNickname: Journal.nickname("Fern"),
@@ -477,7 +478,7 @@ describe("PlantSheet", () => {
     fireEvent.input(within(dialog).getByRole("textbox", { name: "Location" }), {
       target: { value: "Living room" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     const expectedDetails: Journal.NewPlantDetails = {
       species: Journal.species("Ficus lyrata"),
@@ -491,6 +492,7 @@ describe("PlantSheet", () => {
   it("should return focus to the plant's edit control after cancelling an edit", async () => {
     const plant: Journal.Plant = {
       id: Journal.plantId("p1"),
+      registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
       details: {
         species: Journal.species("Ficus lyrata"),
         maybeNickname: null,

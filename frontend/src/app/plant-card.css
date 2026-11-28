@@ -92,6 +92,15 @@
   background: var(--leaf);
 }
 
+.watering-attention--dormant .watering-attention__icon {
+  background: #7053ad;
+}
+
+.dormancy-status__icon {
+  width: 1.45rem;
+  height: 1.45rem;
+}
+
 .watering-attention--overdue .watering-attention__icon {
   color: #5f3a00;
   background: #f3bd4d;
@@ -249,24 +258,6 @@
 .plant-card__actions .inline-icon-action--photos svg {
   width: 0.95rem;
   height: 0.95rem;
-}
-
-.plant-card__actions .inline-icon-action--archive {
-  color: var(--danger);
-}
-
-.plant-card__actions .inline-icon-action--archive:hover,
-.plant-card__actions .inline-icon-action--archive:focus-visible {
-  border-color: var(--danger);
-  background: #fae9e5;
-}
-
-.plant-card__actions .inline-icon-action--archive::before {
-  content: "\2020";
-  position: relative;
-  top: 0.22rem;
-  font-size: 1.55rem;
-  line-height: 1;
 }
 
 .plant-card h2 {

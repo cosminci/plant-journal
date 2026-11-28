@@ -1,0 +1,70 @@
+.plant-editor__actions {
+  align-items: stretch;
+}
+
+.inline-icon-action.plant-editor__state-action {
+  width: 2.75rem;
+  height: auto;
+  min-height: 2.75rem;
+  border-radius: 0.5rem;
+}
+
+.plant-editor__state-action.inline-icon-action--archive {
+  color: var(--danger);
+}
+
+.plant-editor__state-action.inline-icon-action--archive:is(:hover, :focus-visible) {
+  border-color: var(--danger);
+  background: #fae9e5;
+}
+
+.plant-editor__cemetery-icon {
+  display: block;
+  width: 1.85rem;
+  height: 1.85rem;
+}
+
+.plant-editor__state-action--dormant {
+  background: var(--sage);
+}
+
+.plant-editor__sleep-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.dormancy-editor__transition {
+  justify-self: start;
+}
+
+.dormancy-editor__periods {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dormancy-editor__periods li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+}
+
+.dormancy-editor__periods input[type="date"] {
+  min-width: 0;
+  padding-inline: 0.4rem;
+}
+
+.dormancy-editor__arrow,
+.dormancy-editor__periods p {
+  display: flex;
+  align-items: center;
+  min-height: 2.7rem;
+  margin: 0;
+  color: var(--muted);
+}

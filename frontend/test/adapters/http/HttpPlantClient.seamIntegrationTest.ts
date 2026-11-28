@@ -6,6 +6,7 @@ import { jsonResponse, respondingWith } from "./HttpTestSupport";
 const perliteId = Journal.substrateComponentId("00000000-0000-4000-8000-000000000003");
 const plant = (id: string, nickname: string | null = null): Journal.Plant => ({
   id: Journal.plantId(id),
+  registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
   details: {
     species: Journal.species("Ficus lyrata"),
     maybeNickname: nickname === null ? null : Journal.nickname(nickname),
@@ -16,6 +17,7 @@ const plant = (id: string, nickname: string | null = null): Journal.Plant => ({
 });
 const wirePlant = (value: Journal.Plant) => ({
   id: value.id,
+  registeredAt: value.registeredAt,
   details: {
     species: value.details.species,
     nickname: value.details.maybeNickname,
@@ -29,6 +31,49 @@ const wirePlant = (value: Journal.Plant) => ({
 });
 
 describe("HttpPlantClient", () => {
+  it("reads periods and sends edits to the separate dormancy resource", async () => {
+    const id = Journal.plantId("p1");
+    const since = Journal.instant("2026-03-01T10:00:00Z");
+    const open = { id: "winter", startedAt: since, endedAt: null };
+    const closed = { ...open, endedAt: since };
+    const requests: Request[] = [];
+    const offline = new Error("offline");
+    const client = makeHttpPlantClient(
+      respondingWith(
+        [
+          jsonResponse({ periods: [open, closed] }),
+          jsonResponse({ message: "unavailable" }, 500),
+          offline,
+          jsonResponse({ periods: [open] }),
+          jsonResponse({ periods: [closed] }),
+          jsonResponse({ message: "invalid" }, 422),
+          jsonResponse({ message: "unavailable" }, 500),
+          offline,
+        ],
+        requests,
+      ),
+    );
+    const start = { kind: "start" as const, since };
+    const end = { kind: "end" as const, since };
+    const correct = { kind: "correctDates" as const, periods: [closed] };
+    expect(await client.getDormancy(id)).toEqual({ kind: "read", periods: [open, closed] });
+    expect(await client.getDormancy(id)).toMatchObject({ kind: "failed" });
+    expect(await client.getDormancy(id)).toMatchObject({ kind: "failed" });
+    expect(await client.editDormancy(id, start)).toEqual({ kind: "read", periods: [open] });
+    expect(await client.editDormancy(id, end)).toEqual({ kind: "read", periods: [closed] });
+    expect(await client.editDormancy(id, correct)).toEqual({ kind: "invalid" });
+    expect(await client.editDormancy(id, correct)).toMatchObject({ kind: "failed" });
+    expect(await client.editDormancy(id, correct)).toMatchObject({ kind: "failed" });
+    expect(requests.map((request) => new URL(request.url).pathname)).toEqual(
+      Array.from({ length: 8 }, () => "/plants/p1/dormancy"),
+    );
+    expect(await Promise.all(requests.slice(3, 6).map((request) => request.json()))).toEqual([
+      start,
+      end,
+      correct,
+    ]);
+  });
+
   it("should create one active plant with its initial substrate and no operation request", async () => {
     const createdPlant = plant("p3", "Fern");
     const requests: Request[] = [];

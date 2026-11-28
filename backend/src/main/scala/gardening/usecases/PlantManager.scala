@@ -2,6 +2,7 @@ package gardening.usecases
 
 import cats.syntax.either.*
 import cats.syntax.eq.*
+import cats.syntax.option.*
 import cats.data.NonEmptyList
 import gardening.domain.*
 import gardening.domain.plants.*
@@ -113,7 +114,7 @@ object PlantManager:
           else EditDormancyResult.InvalidDates
         case DormancyEdit.End(since) =>
           periods.lastOption.filter(_.maybeEndedAt.isEmpty) match
-            case Some(period) => reviseDormancy(plant, periods, NonEmptyList.one(period.copy(maybeEndedAt = Some(since))))
+            case Some(period) => reviseDormancy(plant, periods, NonEmptyList.one(period.copy(maybeEndedAt = since.some)))
             case None         => EditDormancyResult.InvalidDates
         case DormancyEdit.CorrectDates(updates) =>
           val existing = periods.map(period => period.id -> period).toMap
@@ -130,18 +131,17 @@ object PlantManager:
 
     private def validDormancy(periods: Vector[DormancyPeriod], registeredAt: Instant, now: Instant): Boolean =
       periods.zipWithIndex.forall: (period, index) =>
-        val maybeEarliest = if index === 0 then Some(registeredAt) else periods.lift(index - 1).flatMap(_.maybeEndedAt)
+        val maybeEarliest = if index === 0 then registeredAt.some else periods.lift(index - 1).flatMap(_.maybeEndedAt)
         maybeEarliest.exists(from => !period.startedAt.isBefore(from)) &&
         !period.startedAt.isAfter(now) &&
         period.maybeEndedAt.forall(end => !end.isBefore(period.startedAt) && !end.isAfter(now))
 
     private def savedDormancy(plant: PlantId, periods: Vector[DormancyPeriod], savedResult: Either[Throwable, Unit]): EditDormancyResult =
-      savedResult.fold(
-        failedDormancyEdit,
-        _ =>
+      savedResult match
+        case Left(error) => failedDormancyEdit(error)
+        case Right(_)    =>
           log.info(s"dormancy edited ${plant.value}")
           EditDormancyResult.Edited(periods)
-      )
 
     private def displayName(plant: Plant) =
       plant.id -> plant.details.maybeNickname.map(_.value).getOrElse(plant.details.species.value)

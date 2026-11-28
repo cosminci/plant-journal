@@ -1,6 +1,7 @@
 package gardening.adapters.http
 
 import cats.syntax.either.*
+import cats.syntax.option.*
 import cats.data.NonEmptyList
 import gardening.domain.*
 import gardening.usecases.PlantAttentionMonitor
@@ -100,8 +101,8 @@ object PlantApi:
             (StatusCode.InternalServerError, ApiError("dormancy could not be read")).asLeft,
       patchDormancyEndpoint.handle: (id, body) =>
         val maybeEdit = body match
-          case DormancyPatchBody.Start(since)          => Some(DormancyEdit.Start(since))
-          case DormancyPatchBody.End(since)            => Some(DormancyEdit.End(since))
+          case DormancyPatchBody.Start(since)          => DormancyEdit.Start(since).some
+          case DormancyPatchBody.End(since)            => DormancyEdit.End(since).some
           case DormancyPatchBody.CorrectDates(periods) => NonEmptyList.fromList(periods).map(DormancyEdit.CorrectDates.apply)
         maybeEdit.fold[EditDormancyResult](EditDormancyResult.InvalidDates)(edit => plants.editDormancy(PlantId(id), edit)) match
           case EditDormancyResult.Edited(periods) => attention.refreshAll.pipe(_ => DormancyHistoryBody(periods).asRight)

@@ -104,7 +104,7 @@ object SqlitePlantStore:
         val rows = connect(transactor):
           sql"select id, registered_at from plant where status = 'Active' order by rowid".query[AttentionPlantRow].run()
         rows.traverse(row => registration(row.maybeRegisteredAt).map(AttentionPlant(PlantId(row.id), _)))
-      catch case error: SqlException => Left(error)
+      catch case error: SqlException => error.asLeft
 
     override def readWaterings(plant: PlantId, window: WateringWindow, limit: WateringSampleSize): ReadWateringsResult =
       try
@@ -116,7 +116,7 @@ object SqlitePlantStore:
                 and date >= coalesce($maybeFrom, '') and date < coalesce($maybeUntil, '~')
                 order by date desc, id desc limit $size""".query[String].run()
         dates.traverse(parseTimestamp)
-      catch case error: SqlException => Left(error)
+      catch case error: SqlException => error.asLeft
 
     private def registration(maybeValue: Option[String]) =
       maybeValue.toRight(IllegalStateException("missing plant registration timestamp")).flatMap(parseTimestamp)

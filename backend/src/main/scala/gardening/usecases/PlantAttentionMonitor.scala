@@ -73,7 +73,7 @@ object PlantAttentionMonitor:
 
     private def windows(periods: Vector[DormancyPeriod]): List[WateringWindow] =
       val starts = None +: periods.map(_.maybeEndedAt)
-      val ends   = periods.map(period => Some(period.startedAt)) :+ None
+      val ends   = periods.map(_.startedAt.some) :+ None
       starts.zip(ends).reverseIterator.collect:
         case (maybeStart, maybeEnd) if !maybeStart.exists(start => maybeEnd.exists(end => !start.isBefore(end))) =>
           WateringWindow(maybeStart, maybeEnd)

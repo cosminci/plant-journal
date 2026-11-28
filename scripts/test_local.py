@@ -28,9 +28,11 @@ class LocalDevelopmentTest(unittest.TestCase):
 
     def create_journal(self, path, value):
         with sqlite3.connect(path) as connection:
-            for table in ("plant", "operation", "pesticide", "substrate_component", "flyway_schema_history"):
+            for table in ("plant", "operation", "pesticide", "substrate_component", "flyway_schema_history", "dormancy_period"):
                 connection.execute(f"CREATE TABLE {table} (value TEXT)")
             connection.execute("INSERT INTO plant VALUES (?)", (value,))
+            connection.execute("ALTER TABLE plant ADD COLUMN registered_at TEXT NOT NULL DEFAULT '2026-01-01T00:00:00Z'")
+            connection.execute("ALTER TABLE operation ADD COLUMN is_watering INTEGER")
 
     def mock_ssh(self, command, input, stdout, stderr, timeout, check):
         with sqlite3.connect(self.source) as source, sqlite3.connect(stdout.name) as destination:
@@ -64,6 +66,20 @@ class LocalDevelopmentTest(unittest.TestCase):
         with sqlite3.connect(self.database) as connection:
             self.assertEqual(connection.execute("SELECT value FROM plant").fetchone(), ("local edit",))
         self.assertEqual(list(self.data.glob(".snapshot-*.db")), [])
+
+    def test_refresh_preserves_local_journal_before_the_nas_backfill(self):
+        self.create_journal(self.database, "local edit")
+        self.create_journal(self.source, "NAS value")
+        with sqlite3.connect(self.source) as connection:
+            connection.execute("INSERT INTO operation (value) VALUES ('old operation')")
+
+        with patch.dict(local.os.environ, {"GARDENING_NAS_DB_PATH": "/data/gardening.db", "GARDENING_NAS_SSH": "nas"}):
+            with patch.object(local.subprocess, "run", side_effect=self.mock_ssh):
+                with self.assertRaisesRegex(RuntimeError, "missing the dormancy backfill"):
+                    local.refresh(confirm=True)
+
+        with sqlite3.connect(self.database) as connection:
+            self.assertEqual(connection.execute("SELECT value FROM plant").fetchone(), ("local edit",))
 
     def test_refresh_requires_confirmation_before_replacing_edits(self):
         self.create_journal(self.database, "local edit")

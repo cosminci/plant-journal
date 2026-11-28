@@ -4,6 +4,7 @@ import gardening.domain.SubstrateComponentId
 import gardening.domain.plants.PlantStatus
 
 import java.sql.{Connection, Types}
+import java.time.Instant
 import java.util.UUID
 import javax.sql.DataSource
 import scala.concurrent.duration.*
@@ -11,6 +12,7 @@ import scala.concurrent.duration.*
 object SqliteHelpers:
 
   val lockTimeout: FiniteDuration = 5.seconds
+  val registeredAt: Instant       = Instant.EPOCH
 
   val perliteId: SubstrateComponentId = SubstrateComponentId(UUID.fromString("00000000-0000-4000-8000-000000000003"))
 
@@ -40,7 +42,9 @@ object SqliteHelpers:
   ): Unit =
     val connection = dataSource.getConnection()
     try
-      val statement = connection.prepareStatement("insert into plant (id, species, nickname, location, status, substrate) values (?, ?, ?, ?, ?, ?)")
+      val statement = connection.prepareStatement(
+        "insert into plant (id, species, nickname, location, status, substrate, registered_at) values (?, ?, ?, ?, ?, ?, ?)"
+      )
       statement.setString(1, id)
       statement.setString(2, species)
       maybeNickname.fold(statement.setNull(3, Types.VARCHAR))(nickname => statement.setString(3, nickname))
@@ -48,6 +52,7 @@ object SqliteHelpers:
       statement.setString(5, status.toString)
       val substrateJson = substrate.map((component, share) => s"""{"component":"${component.value}","share":$share}""").mkString("[", ",", "]")
       statement.setString(6, substrateJson)
+      statement.setString(7, sqliteInstant.format(registeredAt))
       val _ = statement.executeUpdate()
       statement.close()
     finally connection.close()

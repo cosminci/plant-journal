@@ -24,7 +24,8 @@ class PlantApiSeamIntegrationTest extends munit.FunSuite:
   private val substrate = Substrate.of(List(SubstratePart(perliteId, 100))).getOrElse(fail("invalid substrate"))
   private val plant     = Plant(
     PlantId("p1"),
-    PlantDetails(Species("Ficus lyrata"), Nickname("Fern").some, Location("Balcony"), substrate, PlantStatus.Active)
+    PlantDetails(Species("Ficus lyrata"), Nickname("Fern").some, Location("Balcony"), substrate, PlantStatus.Active),
+    Instant.EPOCH
   )
 
   test("should create an active plant with its initial substrate and distinguish creation failures"):
@@ -37,7 +38,7 @@ class PlantApiSeamIntegrationTest extends munit.FunSuite:
     val failed  = post(body, buildPlantApi(createPlantResult = CreatePlantResult.CreateFailed(RuntimeException("secret"))))
 
     val expectedPlant = json(
-      s"""{"id":"p1","details":{"species":"Ficus lyrata","nickname":"Fern","location":"Balcony","substrate":[{"componentId":"${perliteId.value}","share":100}],"status":"active"}}"""
+      s"""{"id":"p1","details":{"species":"Ficus lyrata","nickname":"Fern","location":"Balcony","substrate":[{"componentId":"${perliteId.value}","share":100}],"status":"active"},"registeredAt":"1970-01-01T00:00:00Z"}"""
     )
     assertEquals(created.code -> jsonBody(created), StatusCode.Created             -> expectedPlant)
     assertEquals(unknown.code -> jsonBody(unknown), StatusCode.UnprocessableEntity -> json("""{"message":"unknown substrate component"}"""))
@@ -71,10 +72,10 @@ class PlantApiSeamIntegrationTest extends munit.FunSuite:
     val invalidResponse  = get("/plants?status=unknown", buildPlantApi(activeRefs))
 
     val expectedActive = json(
-      s"""[{"id":"p1","details":{"species":"Ficus lyrata","nickname":"Fern","location":"Balcony","substrate":[{"componentId":"${perliteId.value}","share":100}],"status":"active"}}]"""
+      s"""[{"id":"p1","details":{"species":"Ficus lyrata","nickname":"Fern","location":"Balcony","substrate":[{"componentId":"${perliteId.value}","share":100}],"status":"active"},"registeredAt":"1970-01-01T00:00:00Z"}]"""
     )
     val expectedArchived = json(
-      s"""[{"id":"archived","details":{"species":"Ficus lyrata","nickname":"Fern","location":"Balcony","substrate":[{"componentId":"${perliteId.value}","share":100}],"status":"archived"}}]"""
+      s"""[{"id":"archived","details":{"species":"Ficus lyrata","nickname":"Fern","location":"Balcony","substrate":[{"componentId":"${perliteId.value}","share":100}],"status":"archived"},"registeredAt":"1970-01-01T00:00:00Z"}]"""
     )
     assertEquals(activeResponse.code, StatusCode.Ok)
     assertEquals(archivedResponse.code, StatusCode.Ok)
@@ -202,6 +203,43 @@ class PlantApiSeamIntegrationTest extends munit.FunSuite:
     assertEquals(response.code -> jsonBody(response), expected)
     assertEquals(refs.refreshCalls.get(), 0)
 
+  test("reads stable period IDs and refreshes attention only after a saved dormancy edit"):
+    val refs   = Refs()
+    val period = DormancyPeriod(DormancyPeriodId("winter"), date, maybeEndedAt = None)
+    val server = buildPlantApi(
+      refs,
+      dormancyRead = GetDormancyHistoryResult.Read(Vector(period)),
+      dormancyEdit = EditDormancyResult.Edited(Vector(period)),
+      refreshResult = RefreshAttentionResult.RefreshFailed(RuntimeException("offline"))
+    )
+    val path     = "/plants/p1/dormancy"
+    val expected = json(s"""{"periods":[{"id":"winter","startedAt":"$date","endedAt":null}]}""")
+    assertEquals(jsonBody(get(path, server)), expected)
+    val bodies = List(
+      s"""{"kind":"start","since":"$date"}""",
+      s"""{"kind":"end","since":"$date"}""",
+      s"""{"kind":"correctDates","periods":[{"id":"winter","startedAt":"$date","endedAt":null}]}"""
+    )
+    bodies.foreach(body => assertEquals(jsonBody(patchDormancy(body, server)), expected))
+    assertEquals(patchDormancy("""{"kind":"correctDates","periods":[]}""", server).code, StatusCode.UnprocessableEntity)
+    assertEquals(refs.refreshCalls.get(), 3)
+
+  test("reports dormancy read and edit failures without refreshing"):
+    val refs    = Refs()
+    val offline = RuntimeException("offline")
+    val cases   = List(
+      (GetDormancyHistoryResult.PlantMissing, EditDormancyResult.PlantMissing, StatusCode.NotFound),
+      (GetDormancyHistoryResult.ReadFailed(offline), EditDormancyResult.EditFailed(offline), StatusCode.InternalServerError)
+    )
+    cases.foreach: (read, edit, status) =>
+      val server = buildPlantApi(refs, dormancyRead = read, dormancyEdit = edit)
+      assertEquals(get("/plants/p1/dormancy", server).code, status)
+      assertEquals(patchDormancy(s"""{"kind":"start","since":"$date"}""", server).code, status)
+    assertEquals(refs.refreshCalls.get(), 0)
+
+  private def patchDormancy(body: String, server: TestServer) =
+    basicRequest.patch(Uri.unsafeParse("http://test/plants/p1/dormancy")).body(body).contentType("application/json").send(server)
+
   private case class Refs(
       requestedStatuses: AtomicReference[Vector[PlantStatus]] = AtomicReference(Vector.empty),
       refreshCalls: AtomicInteger = AtomicInteger(0),
@@ -215,10 +253,14 @@ class PlantApiSeamIntegrationTest extends munit.FunSuite:
       plantsResult: GetPlantsResult = GetPlantsResult.Read(Vector.empty),
       archivedCountResult: ArchivedCountResult = ArchivedCountResult.Counted(0L),
       editPlantResult: EditPlantResult = EditPlantResult.Edited(plant),
-      refreshResult: RefreshAttentionResult = RefreshAttentionResult.Refreshed(AttentionProjection(date, Vector.empty))
+      refreshResult: RefreshAttentionResult = RefreshAttentionResult.Refreshed(AttentionProjection(date, Vector.empty)),
+      dormancyRead: GetDormancyHistoryResult = GetDormancyHistoryResult.Read(Vector.empty),
+      dormancyEdit: EditDormancyResult = EditDormancyResult.InvalidDates
   ) =
     val plants = new PlantManager:
-      override def warmDisplayNames(): Unit                                                                                                    = ()
+      def getDormancyHistory(plant: PlantId): GetDormancyHistoryResult         = dormancyRead
+      def editDormancy(plant: PlantId, edit: DormancyEdit): EditDormancyResult = dormancyEdit
+      override def warmDisplayNames(): Unit                                    = ()
       override def createPlant(species: Species, maybeNickname: Option[Nickname], location: Location, substrate: Substrate): CreatePlantResult =
         refs.createdDetails.updateAndGet(_ :+ PlantDetails(species, maybeNickname, location, substrate, PlantStatus.Active))
         createPlantResult

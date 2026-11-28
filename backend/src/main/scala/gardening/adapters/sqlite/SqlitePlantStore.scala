@@ -20,22 +20,32 @@ object SqlitePlantStore:
 
   def make(transactor: Transactor): PlantStore & PlantAttentionStore = LiveSqlitePlantStore(transactor)
 
+  def checkDormancyBackfill(transactor: Transactor): Unit =
+    val missing = connect(transactor):
+      sql"""select 1 from plant where registered_at is null
+            union all select 1 from operation where is_watering is null
+            limit 1""".query[Int].run()
+    def incomplete = IllegalStateException("Complete the one-time dormancy backfill before starting the journal.")
+    trust(Either.cond(test = missing.isEmpty, right = (), left = incomplete))
+
   private class LiveSqlitePlantStore(transactor: Transactor) extends PlantStore, PlantAttentionStore:
 
     override def addPlant(plant: Plant): AddPlantResult =
       try
         val details = plant.details
         transact(transactor):
-          sql"""insert into plant (id, species, nickname, location, substrate, status)
+          sql"""insert into plant (id, species, nickname, location, substrate, status, registered_at)
                 values (${plant.id.value}, ${details.species.value}, ${details.maybeNickname.map(_.value)},
-                        ${details.location.value}, ${details.substrate.asJson.noSpaces}, ${details.status.toString})""".update.run()
+                        ${details.location.value}, ${details.substrate.asJson.noSpaces}, ${details.status.toString},
+                        ${sqliteInstant.format(plant.registeredAt)})""".update.run()
         AddPlantResult.Added
       catch case error: SqlException => AddPlantResult.AddFailed(error)
 
     override def getPlants(status: PlantStatus): GetPlantsResult =
       try
         val rows = connect(transactor):
-          val query = sql"select id, species, nickname, location, substrate, status from plant where status = ${status.toString} order by rowid"
+          val query =
+            sql"select id, species, nickname, location, substrate, status, registered_at from plant where status = ${status.toString} order by rowid"
           query.query[PlantRow].run()
         GetPlantsResult.Read(trust(rows.traverse(toPlant)))
       catch
@@ -75,56 +85,41 @@ object SqlitePlantStore:
       catch case error: SqlException => UpdatePlantResult.UpdateFailed(error)
 
     private def selectPlant(id: String) =
-      sql"select id, species, nickname, location, substrate, status from plant where id = $id"
+      sql"select id, species, nickname, location, substrate, status, registered_at from plant where id = $id"
 
     private def toPlant(row: PlantRow) =
       for
-        substrate <- decode[Substrate](row.substrate).leftMap(r => RuntimeException(s"invalid stored substrate: ${r.getMessage}", r))
+        registeredAt <- registration(row.maybeRegisteredAt)
+        substrate    <- decode[Substrate](row.substrate).leftMap(r => RuntimeException(s"invalid stored substrate: ${r.getMessage}", r))
         // The schema check constrains every stored status to a PlantStatus name.
         // $COVERAGE-OFF$
         status <- PlantStatus.values.find(_.toString.equals(row.status)).toRight(RuntimeException(s"invalid state: ${row.status}"))
       // $COVERAGE-ON$
       yield
         val details = PlantDetails(Species(row.species), row.maybeNickname.map(Nickname.apply), Location(row.location), substrate, status)
-        Plant(PlantId(row.id), details)
+        Plant(PlantId(row.id), details, registeredAt)
 
-    override def getAttentionSamples(size: WateringSampleSize): GetAttentionSamplesResult =
+    override def listActivePlants(): ListAttentionPlantsResult =
       try
-        val rows    = connect(transactor)(selectAttentionSamples(size).query[AttentionSampleRow].run())
-        val samples = trust(rows.traverse(toAttentionSample))
-        GetAttentionSamplesResult.Read(samples)
-      catch
-        case error: SqlException       => GetAttentionSamplesResult.ReadFailed(error)
-        case error: DatabaseCorruption => GetAttentionSamplesResult.ReadFailed(error)
+        val rows = connect(transactor):
+          sql"select id, registered_at from plant where status = 'Active' order by rowid".query[AttentionPlantRow].run()
+        rows.traverse(row => registration(row.maybeRegisteredAt).map(AttentionPlant(PlantId(row.id), _)))
+      catch case error: SqlException => error.asLeft
 
-    private def selectAttentionSamples(size: WateringSampleSize) =
-      val sampleSize: Int = size
-      sql"""select plant.id,
-                   coalesce((
-                     select json_group_array(watering.date order by watering.date desc, watering.id desc)
-                     from (
-                       select operation.id, operation.date
-                       from operation
-                       where operation.plant_id = plant.id
-                         and operation.kind = 'Care'
-                         and exists (
-                           select 1
-                           from json_each(operation.payload, '$$.actions')
-                           where value = 'Watered'
-                         )
-                       order by operation.date desc, operation.id desc
-                       limit $sampleSize
-                     ) watering
-                   ), json('[]')) as watering_dates
-            from plant
-            where plant.status = 'Active'
-            order by plant.rowid"""
+    override def readWaterings(plant: PlantId, window: WateringWindow, limit: WateringSampleSize): ReadWateringsResult =
+      try
+        val maybeFrom  = window.maybeFromInclusive.map(sqliteInstant.format)
+        val maybeUntil = window.maybeUntilExclusive.map(sqliteInstant.format)
+        val size: Int  = limit
+        val dates      = connect(transactor):
+          sql"""select date from operation where plant_id = ${plant.value} and is_watering = 1
+                and date >= coalesce($maybeFrom, '') and date < coalesce($maybeUntil, '~')
+                order by date desc, id desc limit $size""".query[String].run()
+        dates.traverse(parseTimestamp)
+      catch case error: SqlException => error.asLeft
 
-    private def toAttentionSample(row: AttentionSampleRow) =
-      decodeWateringDates(row.wateringDates).traverse(parseTimestamp).map(PlantAttentionSample(PlantId(row.id), _))
-
-    private def decodeWateringDates(value: String) =
-      trust(decode[Vector[String]](value))
+    private def registration(maybeValue: Option[String]) =
+      maybeValue.toRight(IllegalStateException("missing plant registration timestamp")).flatMap(parseTimestamp)
 
     private def parseTimestamp(value: String) =
       Try(Instant.parse(value)).toEither.left.map(_ => RuntimeException(s"invalid stored operation date: $value"))
@@ -139,7 +134,14 @@ object SqlitePlantStore:
                 status = ${details.status.toString}
             where id = ${plant.id.value} and (status = ${details.status.toString} or (status = 'Active' and ${details.status.toString} = 'Archived'))"""
 
-  private case class PlantRow(id: String, species: String, maybeNickname: Option[String], location: String, substrate: String, status: String)
-      derives DbCodec
+  private case class PlantRow(
+      id: String,
+      species: String,
+      maybeNickname: Option[String],
+      location: String,
+      substrate: String,
+      status: String,
+      maybeRegisteredAt: Option[String]
+  ) derives DbCodec
 
-  private case class AttentionSampleRow(id: String, wateringDates: String) derives DbCodec
+  private case class AttentionPlantRow(id: String, maybeRegisteredAt: Option[String]) derives DbCodec

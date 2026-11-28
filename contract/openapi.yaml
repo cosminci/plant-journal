@@ -166,6 +166,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /plants/{plantId}/dormancy:
+    get:
+      summary: Read dormancy periods
+      operationId: getPlantsPlantidDormancy
+      parameters:
+      - name: plantId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DormancyHistoryBody'
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+    patch:
+      summary: Edit dormancy periods
+      operationId: patchPlantsPlantidDormancy
+      parameters:
+      - name: plantId
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DormancyPatchBody'
+        required: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DormancyHistoryBody'
+        '400':
+          description: 'Invalid value for: body'
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '422':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /attention:
     get:
       summary: Read plant attention
@@ -976,6 +1045,61 @@ components:
         kind:
           type: string
           const: care
+    CorrectDates:
+      title: CorrectDates
+      type: object
+      required:
+      - periods
+      - kind
+      properties:
+        periods:
+          description: At least one period is required.
+          type: array
+          items:
+            $ref: '#/components/schemas/DormancyPeriod'
+        kind:
+          type: string
+          const: correctDates
+    DormancyHistoryBody:
+      title: DormancyHistoryBody
+      type: object
+      required:
+      - periods
+      properties:
+        periods:
+          type: array
+          items:
+            $ref: '#/components/schemas/DormancyPeriod'
+    DormancyPatchBody:
+      title: DormancyPatchBody
+      oneOf:
+      - $ref: '#/components/schemas/CorrectDates'
+      - $ref: '#/components/schemas/End'
+      - $ref: '#/components/schemas/Start'
+      discriminator:
+        propertyName: kind
+        mapping:
+          correctDates: '#/components/schemas/CorrectDates'
+          end: '#/components/schemas/End'
+          start: '#/components/schemas/Start'
+    DormancyPeriod:
+      title: DormancyPeriod
+      type: object
+      required:
+      - id
+      - startedAt
+      - endedAt
+      properties:
+        id:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type:
+          - string
+          - 'null'
+          format: date-time
     Empty:
       title: Empty
       type: object
@@ -985,6 +1109,19 @@ components:
         kind:
           type: string
           const: empty
+    End:
+      title: End
+      type: object
+      required:
+      - since
+      - kind
+      properties:
+        since:
+          type: string
+          format: date-time
+        kind:
+          type: string
+          const: end
     HealthResponse:
       title: HealthResponse
       type: object
@@ -1164,11 +1301,15 @@ components:
       required:
       - id
       - details
+      - registeredAt
       properties:
         id:
           type: string
         details:
           $ref: '#/components/schemas/PlantDetails'
+        registeredAt:
+          type: string
+          format: date-time
     PlantAttention:
       title: PlantAttention
       type: object
@@ -1283,6 +1424,19 @@ components:
         kind:
           type: string
           const: repot
+    Start:
+      title: Start
+      type: object
+      required:
+      - since
+      - kind
+      properties:
+        since:
+          type: string
+          format: date-time
+        kind:
+          type: string
+          const: start
     SubstrateComponent:
       title: SubstrateComponent
       type: object

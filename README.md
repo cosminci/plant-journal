@@ -34,6 +34,14 @@ mise exec -- python3 scripts/local.py --refresh
 
 Replacing an existing local journal requires `replace` confirmation (`--yes` is noninteractive). A failed refresh preserves the previous journal; [operations](specs/operational.md#runtime-dependencies) owns snapshot behavior.
 
+For a local journal created before dormancy, back up `.local/gardening.db`, then run from `backend/`:
+
+```sh
+mise exec -- sbt -Dgardening.storage.db-path="$PWD/../.local/gardening.db" "run --migrate-only"
+```
+
+Run the [one-time SQL backfill](specs/changes/plant-dormancy/proposal.md#sqlite) against that local database before restarting the launcher.
+
 ## Product commands
 
 | Task | Command |

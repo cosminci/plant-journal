@@ -50,7 +50,8 @@ class OperationLedgerComponentTest extends munit.FunSuite with TestImplicits:
       location = Location("Balcony"),
       substrate = substrate,
       status = PlantStatus.Active
-    )
+    ),
+    registeredAt = java.time.Instant.EPOCH
   )
 
   private val care = OperationDetails.Care(

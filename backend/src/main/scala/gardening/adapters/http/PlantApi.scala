@@ -1,6 +1,8 @@
 package gardening.adapters.http
 
 import cats.syntax.either.*
+import cats.syntax.option.*
+import cats.data.NonEmptyList
 import gardening.domain.*
 import gardening.usecases.PlantAttentionMonitor
 import gardening.domain.plants.*
@@ -15,12 +17,18 @@ import sttp.tapir.generic.auto.*
 import sttp.tapir.json.circe.*
 import sttp.tapir.server.ServerEndpoint
 import scala.util.chaining.*
+import java.time.Instant
 
 import Codecs.given
 
 final private case class ArchivedPlantCount(count: Long) derives Codec.AsObject
 final private case class PlantCreation(species: Species, maybeNickname: Option[Nickname], location: Location, substrate: Substrate)
 final private case class PlantPatchOperation(op: String, path: String, value: Json) derives Codec.AsObject
+final private case class DormancyHistoryBody(periods: Vector[DormancyPeriod])
+private enum DormancyPatchBody:
+  case Start(since: Instant)
+  case End(since: Instant)
+  case CorrectDates(periods: List[DormancyPeriod])
 
 object PlantApi:
 
@@ -67,11 +75,40 @@ object PlantApi:
     endpoint.patch.in("plants" / path[String]("plantId")).in(extractFromRequest(_.contentTypeParsed)).in(plantPatchBody)
       .errorOut(plantPatchErrors).out(statusCode(StatusCode.NoContent)).summary("Patch a plant")
 
+  private val dormancyEndpoint     = plantEndpoint.in("plants" / path[String]("plantId") / "dormancy")
+  private val getDormancyEndpoint  = dormancyEndpoint.get.out(jsonBody[DormancyHistoryBody]).summary("Read dormancy periods")
+  private val invalidDormancyDates = ApiError("invalid dormancy dates")
+  private val dormancyEditFailed   = ApiError("dormancy could not be edited")
+  private val dormancyPatchErrors  = oneOf[ApiError](
+    oneOfVariantExactMatcher(StatusCode.NotFound, jsonBody[ApiError])(plantMissing),
+    oneOfVariantExactMatcher(StatusCode.UnprocessableEntity, jsonBody[ApiError])(invalidDormancyDates),
+    oneOfDefaultVariant(statusCode(StatusCode.InternalServerError).and(jsonBody[ApiError]))
+  )
+  private val patchDormancyEndpoint = endpoint.patch.in("plants" / path[String]("plantId") / "dormancy")
+    .in(jsonBody[DormancyPatchBody]).errorOut(dormancyPatchErrors)
+    .out(jsonBody[DormancyHistoryBody]).summary("Edit dormancy periods")
+
   private[http] val publicEndpoints: List[AnyEndpoint] =
-    List(createPlantEndpoint, getPlantsEndpoint, getArchivedCountEndpoint, patchPlantEndpoint)
+    List(createPlantEndpoint, getPlantsEndpoint, getArchivedCountEndpoint, patchPlantEndpoint, getDormancyEndpoint, patchDormancyEndpoint)
 
   def serverEndpoints(using plants: PlantManager, attention: PlantAttentionMonitor): List[ServerEndpoint[Any, Identity]] =
     List(
+      getDormancyEndpoint.handle: id =>
+        plants.getDormancyHistory(PlantId(id)) match
+          case GetDormancyHistoryResult.Read(periods) => DormancyHistoryBody(periods).asRight
+          case GetDormancyHistoryResult.PlantMissing  => (StatusCode.NotFound, plantMissing).asLeft
+          case _: GetDormancyHistoryResult.ReadFailed =>
+            (StatusCode.InternalServerError, ApiError("dormancy could not be read")).asLeft,
+      patchDormancyEndpoint.handle: (id, body) =>
+        val maybeEdit = body match
+          case DormancyPatchBody.Start(since)          => DormancyEdit.Start(since).some
+          case DormancyPatchBody.End(since)            => DormancyEdit.End(since).some
+          case DormancyPatchBody.CorrectDates(periods) => NonEmptyList.fromList(periods).map(DormancyEdit.CorrectDates.apply)
+        maybeEdit.fold[EditDormancyResult](EditDormancyResult.InvalidDates)(edit => plants.editDormancy(PlantId(id), edit)) match
+          case EditDormancyResult.Edited(periods) => attention.refreshAll.pipe(_ => DormancyHistoryBody(periods).asRight)
+          case EditDormancyResult.PlantMissing    => plantMissing.asLeft
+          case EditDormancyResult.InvalidDates    => invalidDormancyDates.asLeft
+          case _: EditDormancyResult.EditFailed   => dormancyEditFailed.asLeft,
       createPlantEndpoint.handle: input =>
         plants.createPlant(input.species, input.maybeNickname, input.location, input.substrate) match
           case CreatePlantResult.Created(plant)       => plant.asRight
@@ -137,10 +174,19 @@ object PlantApi:
     Decoder.decodeString.emap(value => Either.cond(value.trim.nonEmpty, Location(value), "location must not be blank")),
     Encoder.encodeString.contramap(_.value)
   )
-  private given Codec.AsObject[PlantCreation] = ConfiguredCodec.derived
-  private given Codec.AsObject[PlantDetails]  = ConfiguredCodec.derived
-  private given Codec.AsObject[Plant]         = ConfiguredCodec.derived
-  private given Schema[PlantCreation]         = Schema
+  private given Codec.AsObject[PlantCreation]  = ConfiguredCodec.derived
+  private given Codec.AsObject[PlantDetails]   = ConfiguredCodec.derived
+  private given Codec.AsObject[Plant]          = ConfiguredCodec.derived
+  private given Codec[DormancyPeriodId]        = Codec.from(Decoder.decodeString.map(DormancyPeriodId.apply), Encoder.encodeString.contramap(_.value))
+  private given Schema[DormancyPeriodId]       = Schema.string
+  private given Schema[DormancyPeriod]         = Schema.derived[DormancyPeriod].modify(_.maybeEndedAt)(_.copy(isOptional = false).nullable)
+  private given Codec.AsObject[DormancyPeriod] = ConfiguredCodec.derived
+  private given Codec.AsObject[DormancyPatchBody]      = ConfiguredCodec.derived
+  private given Schema[DormancyPatchBody.CorrectDates] =
+    Schema.derived[DormancyPatchBody.CorrectDates]
+      .modify(_.periods)(_.copy(isOptional = false).description("At least one period is required."))
+  private given Schema[DormancyHistoryBody] = Schema.derived[DormancyHistoryBody].modify(_.periods)(_.copy(isOptional = false))
+  private given Schema[PlantCreation]       = Schema
     .derived[PlantCreation]
     .modify(_.maybeNickname)(_.copy(isOptional = false).nullable)
     .modify(_.substrate)(_.copy(isOptional = false))

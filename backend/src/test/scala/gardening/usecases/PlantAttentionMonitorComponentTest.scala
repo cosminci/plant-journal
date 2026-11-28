@@ -26,7 +26,7 @@ class PlantAttentionMonitorComponentTest extends munit.FunSuite with TestImplici
   private val componentId   = SubstrateComponentId(UUID.fromString("00000000-0000-4000-8000-000000000001"))
   private val substrate     = Substrate.of(List(SubstratePart(componentId, 100))).toOption.getOrElse(fail("invalid substrate"))
   private val plant         =
-    Plant(PlantId("p1"), PlantDetails(Species("Ficus"), none, Location("Office"), substrate, PlantStatus.Active))
+    Plant(PlantId("p1"), PlantDetails(Species("Ficus"), none, Location("Office"), substrate, PlantStatus.Active), java.time.Instant.EPOCH)
 
   test(s"should return ${WateringAttention.Unavailable} when a plant has fewer than five recorded waterings"):
     val measurementTime      = referenceTime
@@ -248,6 +248,19 @@ class PlantAttentionMonitorComponentTest extends munit.FunSuite with TestImplici
     assertEquals(refreshed, RefreshAttentionResult.Refreshed(expectedProjection))
     assertEquals(currentProjection, expectedProjection)
 
+  test("skips an open period and excludes both closed dormancy time and its waterings"):
+    val start   = referenceTime.minusSeconds(30)
+    val end     = referenceTime.minusSeconds(10)
+    val id      = DormancyPeriodId("winter")
+    val closed  = DormancyPeriod(id, start, Some(end))
+    val samples = GetAttentionSamplesResult.Read(Vector(PlantAttentionSample(plant.id, Vector(end, start, start.minusSeconds(1)))))
+    val refs    = Refs()
+    val awake   = buildMonitor(refs, getAttentionSamplesResults = Vector(samples), periods = Map(plant.id -> Vector(closed)))
+    assertEquals(awake.current.plants.map(_.watering), Vector(WateringAttention.Unavailable(2, Some(10.seconds))))
+    assertEquals(refs.getAttentionSamplesRequests.get(), Vector(20, 19))
+    val open = buildMonitor(getAttentionSamplesResults = Vector(samples), periods = Map(plant.id -> Vector(closed.copy(maybeEndedAt = None))))
+    assertEquals(open.current.plants, Vector.empty)
+
   test("should fail construction when the initial projection cannot be materialized"):
     val failure           = RuntimeException("store down")
     val samplesReadFailed = GetAttentionSamplesResult.ReadFailed(failure)
@@ -255,6 +268,42 @@ class PlantAttentionMonitorComponentTest extends munit.FunSuite with TestImplici
     val thrown = intercept[RuntimeException](buildMonitor(getAttentionSamplesResults = Vector(samplesReadFailed)))
 
     assertEquals(thrown, failure)
+
+  test("preserves the last projection if an eligible watering window cannot be read"):
+    val failure  = RuntimeException("watering read failed")
+    val readings = GetAttentionSamplesResult.Read(Vector(PlantAttentionSample(plant.id, Vector.empty)))
+    val monitor  = buildMonitor(
+      getAttentionSamplesResults = Vector(GetAttentionSamplesResult.Read(Vector.empty), readings),
+      wateringReadError = Some(failure)
+    )
+    val previous = monitor.current
+    assertEquals(monitor.refreshAll, RefreshAttentionResult.RefreshFailed(failure))
+    assertEquals(monitor.current, previous)
+
+  test("skips the gap between touching periods and subtracts both periods from cadence"):
+    val old     = referenceTime.minusSeconds(80)
+    val start   = referenceTime.minusSeconds(60)
+    val middle  = referenceTime.minusSeconds(50)
+    val end     = referenceTime.minusSeconds(30)
+    val periods = Vector(
+      DormancyPeriod(DormancyPeriodId("first"), start, Some(middle)),
+      DormancyPeriod(DormancyPeriodId("second"), middle, Some(end))
+    )
+    val samples = GetAttentionSamplesResult.Read(Vector(PlantAttentionSample(
+      plant.id,
+      Vector(
+        end.plusSeconds(20),
+        end.plusSeconds(10),
+        end,
+        middle,
+        old,
+        old.minusSeconds(10)
+      )
+    )))
+    val refs    = Refs()
+    val monitor = buildMonitor(refs, getAttentionSamplesResults = Vector(samples), periods = Map(plant.id -> periods))
+    assertEquals(refs.getAttentionSamplesRequests.get(), Vector(20, 17))
+    assertEquals(monitor.current.plants.map(_.watering), Vector(WateringAttention.Current(5, 12500.millis, 10.seconds)))
 
   extension (instant: Instant)
     private def +(duration: FiniteDuration) = instant.plus(duration.toJava)
@@ -268,17 +317,37 @@ class PlantAttentionMonitorComponentTest extends munit.FunSuite with TestImplici
   private val historySize: WateringSampleSize     = 20
   private val overdueGracePeriod: FiniteDuration  = 24.hours
 
+  private enum GetAttentionSamplesResult:
+    case Read(samples: Vector[PlantAttentionSample])
+    case ReadFailed(reason: Throwable)
+
   private def buildMonitor(
       refs: Refs = Refs(),
       now: () => Instant = () => referenceTime,
-      getAttentionSamplesResults: Vector[GetAttentionSamplesResult] = Vector(GetAttentionSamplesResult.Read(Vector.empty))
+      getAttentionSamplesResults: Vector[GetAttentionSamplesResult] = Vector(GetAttentionSamplesResult.Read(Vector.empty)),
+      periods: Map[PlantId, Vector[DormancyPeriod]] = Map.empty,
+      wateringReadError: Option[Throwable] = None
   ) =
     val readIndex = AtomicInteger()
+    val samples   = AtomicReference(Vector.empty[PlantAttentionSample])
     val store     = new PlantAttentionStore:
-      override def getAttentionSamples(size: WateringSampleSize): GetAttentionSamplesResult =
-        refs.getAttentionSamplesRequests.updateAndGet(_ :+ size)
+      override def listActivePlants(): ListAttentionPlantsResult =
         getAttentionSamplesResults
           .lift(readIndex.getAndIncrement())
           .orElse(getAttentionSamplesResults.lastOption)
-          .getOrElse(fail("missing getAttentionSamples result"))
-    PlantAttentionMonitor.make(PlantAttentionMonitor.Settings(minSampleCount, historySize, overdueGracePeriod))(using store, () => now())
+          .getOrElse(fail("missing sample fixture")) match
+          case GetAttentionSamplesResult.Read(found) =>
+            samples.set(found)
+            Right(found.map(sample => AttentionPlant(sample.plantId, Instant.EPOCH)))
+          case GetAttentionSamplesResult.ReadFailed(reason) => Left(reason)
+      override def readWaterings(plant: PlantId, window: WateringWindow, limit: WateringSampleSize): ReadWateringsResult =
+        val _ = refs.getAttentionSamplesRequests.updateAndGet(_ :+ limit)
+        wateringReadError.toLeft(samples.get().find(_.plantId.value.equals(plant.value)).toVector.flatMap(_.wateringDates).filter(date =>
+          window.maybeFromInclusive.forall(from => !date.isBefore(from)) &&
+            window.maybeUntilExclusive.forall(date.isBefore)
+        ).take(limit))
+    val dormancy = new gardening.ports.DormancyStore:
+      def listPeriods(plant: PlantId): ListDormancyPeriodsResult                           = Right(periods.getOrElse(plant, Vector.empty))
+      def insertPeriod(plant: PlantId, period: DormancyPeriod): InsertDormancyPeriodResult = fail("unexpected write")
+      def updatePeriods(plant: PlantId, updates: cats.data.NonEmptyList[DormancyPeriod]): UpdateDormancyPeriodsResult = fail("unexpected write")
+    PlantAttentionMonitor.make(PlantAttentionMonitor.Settings(minSampleCount, historySize, overdueGracePeriod))(using store, dormancy, () => now())

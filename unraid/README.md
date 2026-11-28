@@ -17,7 +17,9 @@ If the Git tag push fails after the image publishes, use the image's commit labe
 
 ## Update and recover
 
-WUD auto-updates the container to newer stable tags overnight (no `wud.trigger.exclude`, unlike the manually-applied containers elsewhere on the NAS) — there is no DB migration or rollback tooling, so a bad release fails silently until noticed. Check the release notes for any pending version before it ships if you want to catch trouble in advance. After an auto-update, confirm the service is reachable on the LAN and from a device connected over the tailnet:
+WUD normally updates the container to newer stable tags overnight. Before installing the first release with dormancy, pause auto-updates, stop the app, and back up the database. Run the new image once with `--migrate-only` and the existing database mount and settings, then run the [one-time SQL backfill](../specs/changes/plant-dormancy/proposal.md#sqlite) on the NAS before starting the updated app. Resume auto-updates after checking the journal.
+
+After an update, confirm the service is reachable on the LAN and from a device connected over the tailnet:
 
 ```sh
 curl -fsS http://tower:8080/health

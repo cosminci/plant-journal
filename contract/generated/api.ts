@@ -73,6 +73,24 @@ export interface paths {
         patch: operations["patchPlantsPlantid"];
         trace?: never;
     };
+    "/plants/{plantId}/dormancy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read dormancy periods */
+        get: operations["getPlantsPlantidDormancy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit dormancy periods */
+        patch: operations["patchPlantsPlantidDormancy"];
+        trace?: never;
+    };
     "/attention": {
         parameters: {
             query?: never;
@@ -376,6 +394,30 @@ export interface components {
              */
             kind: "care";
         };
+        /** CorrectDates */
+        CorrectDates: {
+            /** @description At least one period is required. */
+            periods: components["schemas"]["DormancyPeriod"][];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "correctDates";
+        };
+        /** DormancyHistoryBody */
+        DormancyHistoryBody: {
+            periods: components["schemas"]["DormancyPeriod"][];
+        };
+        /** DormancyPatchBody */
+        DormancyPatchBody: components["schemas"]["CorrectDates"] | components["schemas"]["End"] | components["schemas"]["Start"];
+        /** DormancyPeriod */
+        DormancyPeriod: {
+            id: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: string | null;
+        };
         /** Empty */
         Empty: {
             /**
@@ -383,6 +425,16 @@ export interface components {
              * @enum {string}
              */
             kind: "empty";
+        };
+        /** End */
+        End: {
+            /** Format: date-time */
+            since: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "end";
         };
         /** HealthResponse */
         HealthResponse: {
@@ -465,6 +517,8 @@ export interface components {
         Plant: {
             id: string;
             details: components["schemas"]["PlantDetails"];
+            /** Format: date-time */
+            registeredAt: string;
         };
         /** PlantAttention */
         PlantAttention: {
@@ -518,6 +572,16 @@ export interface components {
              * @enum {string}
              */
             kind: "repot";
+        };
+        /** Start */
+        Start: {
+            /** Format: date-time */
+            since: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "start";
         };
         /** SubstrateComponent */
         SubstrateComponent: {
@@ -825,6 +889,93 @@ export interface operations {
                 };
             };
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getPlantsPlantidDormancy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DormancyHistoryBody"];
+                };
+            };
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    patchPlantsPlantidDormancy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plantId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DormancyPatchBody"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DormancyHistoryBody"];
+                };
+            };
+            /** @description Invalid value for: body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

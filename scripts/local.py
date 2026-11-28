@@ -97,8 +97,13 @@ def validate_snapshot(path: Path) -> None:
         require(not connection.execute("PRAGMA foreign_key_check").fetchone(), "NAS snapshot has invalid foreign keys.")
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         require(
-            {"plant", "operation", "pesticide", "substrate_component", "flyway_schema_history"} <= tables,
-            "NAS snapshot is not a migrated gardening journal.",
+            {"plant", "operation", "pesticide", "substrate_component", "flyway_schema_history", "dormancy_period"} <= tables,
+            "NAS snapshot is not a migrated gardening journal. Apply the dormancy migration on the NAS first.",
+        )
+        require(
+            not connection.execute("SELECT 1 FROM plant WHERE registered_at IS NULL LIMIT 1").fetchone()
+            and not connection.execute("SELECT 1 FROM operation WHERE is_watering IS NULL LIMIT 1").fetchone(),
+            "NAS snapshot is missing the dormancy backfill. Complete it on the NAS first.",
         )
 
 

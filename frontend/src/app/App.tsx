@@ -7,6 +7,7 @@ import {
   createSignal,
   onCleanup,
   onMount,
+  untrack,
 } from "solid-js";
 import type { Component } from "solid-js";
 import type * as Journal from "../domain/Journal";
@@ -32,6 +33,7 @@ import { OperationSheet, operationControlId, type OperationTarget } from "./Oper
 import { filterHistoriesBySearch } from "./PlantSearch";
 import { createPesticideCatalogController } from "./PesticideCatalogController";
 import { PlantSheet, type PlantTarget } from "./PlantSheet";
+import { archivePlantControlId } from "./OperationControlIds";
 import { createSubstrateCatalogController } from "./SubstrateCatalogController";
 import "./app.css";
 
@@ -99,6 +101,9 @@ export const App: Component<AppProps> = (props) => {
 
   const loadJournal = async (animate = false) => {
     const version = ++loadVersion;
+    const previousPeriods = new Map(
+      untrack(gardenHistories).map((entry) => [entry.plant.id, entry.periods]),
+    );
     const plants = props.plants;
     const operations = props.operations;
     const [plantsResult, countResult, componentsResult, mixesResult, pesticidesResult] =
@@ -137,25 +142,41 @@ export const App: Component<AppProps> = (props) => {
     activePlantIdsLoaded = true;
 
     const results = await Promise.all(
-      plantsResult.plants.map(async (plant) => ({
-        plant,
-        operationsResult: await operations.getOperations(plant.id, {
-          offset: 0,
-          size: recentOperationCount,
-        }),
-      })),
+      plantsResult.plants.map(async (plant) => {
+        const [operationsResult, dormancyResult] = await Promise.all([
+          operations.getOperations(plant.id, {
+            offset: 0,
+            size: recentOperationCount,
+          }),
+          plants.getDormancy(plant.id),
+        ]);
+        return { plant, operationsResult, dormancyResult };
+      }),
     );
     if (version !== loadVersion) return;
-    const loaded: GardenHistory[] = [];
-    for (const { plant, operationsResult } of results) {
-      if (operationsResult.kind !== "read") {
-        setView("failed");
-        return;
-      }
-      loaded.push({ kind: "garden", plant, page: operationsResult.page });
-    }
     const display = () => {
       if (version !== loadVersion) return;
+      const savedPeriods = new Map(
+        gardenHistories()
+          .filter((entry) => previousPeriods.get(entry.plant.id) !== entry.periods)
+          .map((entry) => [entry.plant.id, entry.periods]),
+      );
+      const loaded: GardenHistory[] = [];
+      for (const { plant, operationsResult, dormancyResult } of results) {
+        const saved = savedPeriods.get(plant.id);
+        const history =
+          saved === undefined ? dormancyResult : { kind: "read" as const, periods: saved };
+        if (operationsResult.kind !== "read" || history.kind !== "read") {
+          setView("failed");
+          return;
+        }
+        loaded.push({
+          kind: "garden",
+          plant,
+          page: operationsResult.page,
+          periods: history.periods,
+        });
+      }
       setGardenHistories(loaded);
       setCemeteryCount(countResult.count);
       setReady(true);
@@ -246,9 +267,22 @@ export const App: Component<AppProps> = (props) => {
     if (result.kind === "alreadyArchived") return "This plant was already archived.";
     if (result.kind === "archiveFailed") return "The plant could not be archived.";
     attentionFeed.markRecentlyArchived(plant.id);
+    setPlantTarget(undefined);
     await loadJournal().catch(() => setView("failed"));
     archive.complete();
     return undefined;
+  };
+
+  const saveDormancy = async (plant: Journal.PlantId, edit: Journal.DormancyEdit) => {
+    const result = await props.plants.editDormancy(plant, edit);
+    if (result.kind === "read") {
+      setGardenHistories((entries) =>
+        entries.map((entry) =>
+          entry.plant.id === plant ? { ...entry, periods: result.periods } : entry,
+        ),
+      );
+    }
+    return result;
   };
 
   const catalogErrorMessage = (result: { kind: string }) =>
@@ -470,7 +504,6 @@ export const App: Component<AppProps> = (props) => {
               setSaveError(undefined);
               setFormTarget({ kind: "log", plant });
             }}
-            onArchive={archive.request}
             onEditPlant={(plant) => {
               setPlantSaveError(undefined);
               setPlantTarget({ kind: "edit", plant });
@@ -490,6 +523,29 @@ export const App: Component<AppProps> = (props) => {
             substrateMixes={substrateMixes()}
             saveError={plantSaveError()}
             completed={plantSheetCompleted()}
+            dormancy={(() => {
+              if (target.kind !== "edit") return undefined;
+              const entry = gardenHistories().find(
+                (history) => history.plant.id === target.plant.id,
+              );
+              return (
+                entry && {
+                  periods: entry.periods,
+                  onSave: (edit: Journal.DormancyEdit) => saveDormancy(target.plant.id, edit),
+                }
+              );
+            })()}
+            archive={
+              target.kind === "edit"
+                ? {
+                    id: archivePlantControlId(target.plant.id),
+                    request: () => {
+                      archive.request(target.plant);
+                    },
+                  }
+                : undefined
+            }
+            archiveConfirming={archive.target() !== undefined}
             onSubmit={(details) =>
               target.kind === "add"
                 ? createNewPlant(details)

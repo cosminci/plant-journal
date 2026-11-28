@@ -44,7 +44,6 @@ const emptyCardProps = {
   getOperations: () =>
     Promise.resolve({ kind: "read", page: { operations: [], hasNextPage: false } } as const),
   onLog: () => undefined,
-  onArchive: () => undefined,
   onEditPlant: () => undefined,
   onViewPhotos: () => undefined,
   onEdit: () => undefined,
@@ -78,6 +77,7 @@ describe("plant cards", () => {
 
     const pending = screen.getByRole("complementary", { name: "Attention pending for Fern" });
     expect(pending).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /dorman/i })).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Watering attention details for Fern" }),
     ).toBeNull();
@@ -111,7 +111,6 @@ describe("plant cards", () => {
         }
         operationChange={undefined}
         onLog={() => undefined}
-        onArchive={() => undefined}
         onEditPlant={() => undefined}
         onViewPhotos={() => undefined}
         onEdit={onEdit}
@@ -187,7 +186,6 @@ describe("plant cards", () => {
       getOperations: () =>
         Promise.resolve({ kind: "read", page: { operations: [], hasNextPage: false } } as const),
       onLog: () => undefined,
-      onArchive: () => undefined,
       onEditPlant: () => undefined,
       onViewPhotos: () => undefined,
       onEdit: () => undefined,
@@ -234,10 +232,10 @@ describe("plant cards", () => {
     expect(screen.queryByRole("button", { name: "Log operation for Fern" })).toBeNull();
   });
 
-  it("should show unknown dates for a cemetery plant without operations", () => {
+  it("should show the registration date for a cemetery plant without operations", () => {
     render(() => <PlantCard {...archivedCardProps} />);
 
-    expect(screen.getByText("Dates unknown")).toBeInTheDocument();
+    expect(screen.getByText("01.02.2026")).toBeInTheDocument();
   });
 
   it("should show the same recorded start and end date for a single operation", () => {
@@ -249,21 +247,14 @@ describe("plant cards", () => {
     expect(screen.getAllByText("01.02.2026")).toHaveLength(2);
   });
 
-  it("should offer archiving and editing from an active plant summary", () => {
-    const onArchive = vi.fn();
+  it("should offer editing from an active plant summary", () => {
     const onEditPlant = vi.fn();
 
     render(() => (
-      <PlantCard
-        {...emptyCardProps}
-        watering={currentWatering}
-        onArchive={onArchive}
-        onEditPlant={onEditPlant}
-      />
+      <PlantCard {...emptyCardProps} watering={currentWatering} onEditPlant={onEditPlant} />
     ));
 
-    fireEvent.click(screen.getByRole("button", { name: "Archive Fern" }));
-    expect(onArchive).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Archive Fern" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Fern" }));
     expect(onEditPlant).toHaveBeenCalledOnce();

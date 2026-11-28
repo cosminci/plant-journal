@@ -2,17 +2,20 @@ import { Show, createSignal, onCleanup, onMount, untrack } from "solid-js";
 import type { Component } from "solid-js";
 import * as Journal from "../domain/Journal";
 import { useBackgroundBarrier } from "./BackgroundBarrier";
+import { DormancySheet } from "./DormancySheet";
 import * as Labels from "./JournalLabels";
 import { LoadSubstrateMixSheet } from "./LoadSubstrateMixSheet";
 import * as Controls from "./OperationControlIds";
 import { SaveSubstrateMixSheet } from "./SaveSubstrateMixSheet";
 import { waitForSheetTransition } from "./SheetTransition";
+import { SleepIcon } from "./SleepIcon";
 import { SubstrateComponentArchiveConfirmation } from "./SubstrateComponentArchiveConfirmation";
 import { SubstrateComponentEditor } from "./SubstrateComponentEditor";
 import { SubstrateFields, validateSubstrate } from "./SubstrateFields";
 import type { SubstratePartInput } from "./SubstrateFields";
 import "./form-fields.css";
 import "./operation-form.css";
+import "./plant-editor.css";
 import "./sheet.css";
 
 export type PlantTarget =
@@ -43,6 +46,14 @@ interface PlantSheetProps {
   readonly onRequestDeleteSubstrateMix: (mix: Journal.SubstrateMix) => void;
   readonly onCancel: () => void;
   readonly deleteMixConfirming?: boolean | undefined;
+  readonly dormancy?:
+    | {
+        readonly periods: readonly Journal.DormancyPeriod[];
+        readonly onSave: (edit: Journal.DormancyEdit) => Promise<Journal.DormancyResult>;
+      }
+    | undefined;
+  readonly archive?: { readonly id: string; readonly request: () => void } | undefined;
+  readonly archiveConfirming?: boolean | undefined;
 }
 
 type SecondarySheet =
@@ -52,12 +63,14 @@ type SecondarySheet =
       readonly returnFocusId: string;
     }
   | { readonly kind: "saveMix"; readonly returnFocusId: string }
-  | { readonly kind: "loadMix"; readonly returnFocusId: string };
+  | { readonly kind: "loadMix"; readonly returnFocusId: string }
+  | { readonly kind: "dormancy"; readonly returnFocusId: string };
 
 const secondarySheetLabels: Record<SecondarySheet["kind"], string> = {
   component: "Substrate component editor",
   saveMix: "Save substrate mix",
   loadMix: "Load substrate mix",
+  dormancy: "Dormancy",
 };
 
 export const PlantSheet: Component<PlantSheetProps> = (props) => {
@@ -81,6 +94,20 @@ export const PlantSheet: Component<PlantSheetProps> = (props) => {
   );
   const [validationError, setValidationError] = createSignal<string>();
   const [submitting, setSubmitting] = createSignal(false);
+  const [savingDormancy, setSavingDormancy] = createSignal(false);
+  const [confirmingDormancy, setConfirmingDormancy] = createSignal(false);
+  const dormant = () => props.dormancy?.periods.some((period) => period.endedAt === null) === true;
+  const saveDormancy = async (
+    save: NonNullable<PlantSheetProps["dormancy"]>["onSave"],
+    edit: Journal.DormancyEdit,
+  ) => {
+    setSavingDormancy(true);
+    try {
+      return await save(edit);
+    } finally {
+      setSavingDormancy(false);
+    }
+  };
   const [editor, setEditor] = createSignal<SecondarySheet>();
   const [closingSheet, setClosingSheet] = createSignal<"editor" | "plant">();
   const [archiveTarget, setArchiveTarget] = createSignal<Journal.SubstrateComponent>();
@@ -109,13 +136,16 @@ export const PlantSheet: Component<PlantSheetProps> = (props) => {
     if (
       event.key === "Escape" &&
       !submitting() &&
+      !savingDormancy() &&
+      !confirmingDormancy() &&
       props.deleteMixConfirming !== true &&
+      props.archiveConfirming !== true &&
       archiveTarget() === undefined
     ) {
       event.preventDefault();
       void closeSheets(editor() === undefined ? "plant" : "editor");
     }
-    if (event.key !== "Tab" || editor() !== undefined) return;
+    if (event.key !== "Tab" || editor() !== undefined || props.archiveConfirming === true) return;
     if (
       event.shiftKey &&
       (document.activeElement === collapseButton || document.activeElement === dialog)
@@ -263,6 +293,20 @@ export const PlantSheet: Component<PlantSheetProps> = (props) => {
             onClose={() => void closeSheets("editor")}
           />
         );
+      case "dormancy":
+        return (
+          <Show when={props.dormancy}>
+            {(dormancy) => (
+              <DormancySheet
+                periods={dormancy().periods}
+                pending={savingDormancy()}
+                onConfirming={setConfirmingDormancy}
+                onSave={(edit) => saveDormancy(dormancy().onSave, edit)}
+                onClose={() => void closeSheets("editor")}
+              />
+            )}
+          </Show>
+        );
     }
   };
 
@@ -280,9 +324,11 @@ export const PlantSheet: Component<PlantSheetProps> = (props) => {
         classList={{ "sheet--closing": closingSheet() === "plant" }}
         role="dialog"
         aria-label="Plant editor"
-        aria-modal={editor() === undefined ? "true" : undefined}
+        aria-modal={editor() === undefined && props.archiveConfirming !== true ? "true" : undefined}
         tabIndex="-1"
-        inert={closingSheet() === "plant"}
+        inert={
+          editor() !== undefined || closingSheet() === "plant" || props.archiveConfirming === true
+        }
       >
         <form
           class="operation-form"
@@ -363,7 +409,45 @@ export const PlantSheet: Component<PlantSheetProps> = (props) => {
                 </p>
               )}
             </Show>
-            <footer class="operation-form__actions">
+            <footer class="operation-form__actions plant-editor__actions">
+              <Show when={props.archive}>
+                {(archive) => (
+                  <button
+                    id={archive().id}
+                    class="inline-icon-action inline-icon-action--archive plant-editor__state-action"
+                    type="button"
+                    aria-label="Move to cemetery"
+                    title="Move to cemetery"
+                    disabled={submitting()}
+                    onClick={() => {
+                      archive().request();
+                    }}
+                  >
+                    <svg class="plant-editor__cemetery-icon" viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M10.5 2h3v5h5v3h-5v12h-3V10h-5V7h5z" fill="currentColor" />
+                    </svg>
+                  </button>
+                )}
+              </Show>
+              <Show when={props.dormancy}>
+                <button
+                  id="open-dormancy"
+                  class="inline-icon-action plant-editor__state-action"
+                  classList={{ "plant-editor__state-action--dormant": dormant() }}
+                  type="button"
+                  aria-label="Dormancy"
+                  title="Dormancy"
+                  disabled={submitting()}
+                  onClick={() => {
+                    setEditor({
+                      kind: "dormancy",
+                      returnFocusId: "open-dormancy",
+                    });
+                  }}
+                >
+                  <SleepIcon class="plant-editor__sleep-icon" />
+                </button>
+              </Show>
               <button
                 ref={(element) => {
                   saveButton = element;
@@ -372,7 +456,7 @@ export const PlantSheet: Component<PlantSheetProps> = (props) => {
                 type="submit"
                 disabled={submitting()}
               >
-                {submitting() ? "Saving…" : isEdit ? "Save changes" : "Save plant"}
+                {submitting() ? "Saving…" : isEdit ? "Save" : "Save plant"}
               </button>
             </footer>
           </div>
@@ -383,9 +467,9 @@ export const PlantSheet: Component<PlantSheetProps> = (props) => {
           <aside
             class="sheet sheet--catalog-editor sheet--entering"
             classList={{ "sheet--closing": closingSheet() === "editor" }}
-            inert={closingSheet() === "editor"}
+            inert={closingSheet() === "editor" || confirmingDormancy()}
             role="dialog"
-            aria-modal="true"
+            aria-modal={confirmingDormancy() ? undefined : "true"}
             aria-label={secondarySheetLabels[current.kind]}
           >
             {editorContent(current)}

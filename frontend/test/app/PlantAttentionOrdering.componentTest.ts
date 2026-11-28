@@ -5,6 +5,7 @@ import * as Journal from "../../src/domain/Journal";
 describe("plant attention ordering", () => {
   const referencePlant: Journal.Plant = {
     id: Journal.plantId("plant"),
+    registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
     details: {
       species: Journal.species("Ficus"),
       maybeNickname: null,
@@ -187,16 +188,19 @@ describe("plant attention ordering", () => {
     const kitchenFicus = {
       ...referencePlant,
       id: Journal.plantId("kitchen-ficus"),
+      registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
       details: { ...referencePlant.details, location: Journal.location("Kitchen") },
     };
     const officeFicus = {
       ...referencePlant,
       id: Journal.plantId("office-ficus"),
+      registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
       details: { ...referencePlant.details, location: Journal.location("Office") },
     };
     const officeMonstera = {
       ...referencePlant,
       id: Journal.plantId("office-monstera"),
+      registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
       details: {
         ...referencePlant.details,
         location: Journal.location("Office"),
@@ -206,6 +210,7 @@ describe("plant attention ordering", () => {
     const officeMontyA = {
       ...referencePlant,
       id: Journal.plantId("office-monty-a"),
+      registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
       details: {
         ...referencePlant.details,
         location: Journal.location("Office"),

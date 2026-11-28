@@ -6,6 +6,7 @@ import { formatLocalDate, formatSubstrate, plantDisplayName } from "./JournalLab
 import * as Controls from "./OperationControlIds";
 import { OperationCell } from "./OperationCell";
 import { OperationHistory, type OperationHistoryChange } from "./OperationHistory";
+import { SleepIcon } from "./SleepIcon";
 import { useCardsView } from "./useCardsView";
 
 export const plantPhotosControlId = (id: Journal.PlantId) => `plant-photos-${String(id)}`;
@@ -29,8 +30,8 @@ type PlantCardProps = PlantCardBaseProps &
         readonly plant: Journal.Plant;
         readonly watering?: Journal.WateringAttention | undefined;
         readonly measuredAt?: Journal.Instant | undefined;
+        readonly dormantSince?: Journal.Instant | undefined;
         readonly onLog: () => void;
-        readonly onArchive: () => void;
         readonly onEditPlant: (plant: Journal.Plant) => void;
       }
     | {
@@ -184,15 +185,27 @@ export const PlantCard: Component<PlantCardProps> = (props) => {
             <span class="recorded-life__stone" aria-hidden="true">
               RIP
             </span>
-            {props.dates.kind === "recorded" ? (
-              <span class="recorded-life__dates">
-                <time dateTime={props.dates.first}>{formatLocalDate(props.dates.first)}</time>
-                <span aria-hidden="true">–</span>
-                <time dateTime={props.dates.last}>{formatLocalDate(props.dates.last)}</time>
-              </span>
-            ) : (
-              <span class="recorded-life__dates">Dates unknown</span>
-            )}
+            <span class="recorded-life__dates">
+              <time dateTime={props.plant.registeredAt}>
+                {formatLocalDate(props.plant.registeredAt)}
+              </time>
+              {props.dates.kind === "recorded" && (
+                <>
+                  <span aria-hidden="true">–</span>
+                  <time dateTime={props.dates.last}>{formatLocalDate(props.dates.last)}</time>
+                </>
+              )}
+            </span>
+          </aside>
+        ) : props.dormantSince !== undefined ? (
+          <aside class="watering-attention watering-attention--dormant" aria-label="Dormant">
+            <span class="watering-attention__icon" role="img" aria-label="Dormancy icon">
+              <SleepIcon class="dormancy-status__icon" />
+            </span>
+            <span class="watering-attention__delta">
+              {Math.max(0, Math.floor((Date.now() - Date.parse(props.dormantSince)) / 86_400_000))}{" "}
+              days
+            </span>
           </aside>
         ) : props.watering !== undefined && props.measuredAt !== undefined ? (
           <WateringStatus
@@ -248,16 +261,6 @@ export const PlantCard: Component<PlantCardProps> = (props) => {
                     title={`Edit ${name()}`}
                     onClick={() => {
                       props.onEditPlant(props.plant);
-                    }}
-                  />
-                  <button
-                    id={Controls.archivePlantControlId(props.plant.id)}
-                    class="inline-icon-action inline-icon-action--archive"
-                    type="button"
-                    aria-label={`Archive ${name()}`}
-                    title={`Archive ${name()}`}
-                    onClick={() => {
-                      props.onArchive();
                     }}
                   />
                 </>

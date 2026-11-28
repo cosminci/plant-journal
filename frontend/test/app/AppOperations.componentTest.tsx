@@ -53,7 +53,8 @@ Vitest.describe("changing the journal", () => {
           photos={JournalFixtures.noopPhotoClient}
         />
       ));
-      const archiveControl = await Testing.screen.findByRole("button", { name: "Archive Fern" });
+      Testing.fireEvent.click(await Testing.screen.findByRole("button", { name: "Edit Fern" }));
+      const archiveControl = Testing.screen.getByRole("button", { name: "Move to cemetery" });
 
       Testing.fireEvent.click(archiveControl);
       const warning = Testing.screen.getByRole("alertdialog");
@@ -97,7 +98,8 @@ Vitest.describe("changing the journal", () => {
         photos={JournalFixtures.noopPhotoClient}
       />
     ));
-    const archiveControl = await Testing.screen.findByRole("button", { name: "Archive Fern" });
+    Testing.fireEvent.click(await Testing.screen.findByRole("button", { name: "Edit Fern" }));
+    const archiveControl = Testing.screen.getByRole("button", { name: "Move to cemetery" });
     archiveControl.focus();
 
     Testing.fireEvent.click(archiveControl);
@@ -424,17 +426,22 @@ Vitest.describe("changing the journal", () => {
         photos={JournalFixtures.noopPhotoClient}
       />
     ));
-    const archiveControl = await Testing.screen.findByRole("button", { name: "Archive Fern" });
+    Testing.fireEvent.click(await Testing.screen.findByRole("button", { name: "Edit Fern" }));
+    const archiveControl = Testing.screen.getByRole("button", { name: "Move to cemetery" });
     archiveControl.focus();
 
     Testing.fireEvent.click(archiveControl);
-    Testing.fireEvent.click(Testing.screen.getByRole("button", { name: "Move to cemetery" }));
+    Testing.fireEvent.click(
+      Testing.within(Testing.screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Move to cemetery",
+      }),
+    );
     const garden = await Testing.screen.findByRole("button", { name: /Garden.*1 plant/ });
     await Testing.waitFor(() => {
       Vitest.expect(garden).toHaveFocus();
     });
     const archiveRemaining = Testing.screen.getByRole("button", {
-      name: "Archive Monstera deliciosa",
+      name: "Edit Monstera deliciosa",
     });
     const gardenFocused = document.activeElement === garden;
     const remainingFocused = document.activeElement === archiveRemaining;
@@ -498,8 +505,13 @@ Vitest.describe("changing the journal", () => {
           photos={JournalFixtures.noopPhotoClient}
         />
       ));
-      Testing.fireEvent.click(await Testing.screen.findByRole("button", { name: "Archive Fern" }));
+      Testing.fireEvent.click(await Testing.screen.findByRole("button", { name: "Edit Fern" }));
       Testing.fireEvent.click(Testing.screen.getByRole("button", { name: "Move to cemetery" }));
+      Testing.fireEvent.click(
+        Testing.within(Testing.screen.getByRole("alertdialog")).getByRole("button", {
+          name: "Move to cemetery",
+        }),
+      );
       await Testing.screen.findByRole("button", { name: /Garden.*1 plant/ });
 
       journal.pushAttention(bothPlantsAttention);
@@ -554,10 +566,13 @@ Vitest.describe("changing the journal", () => {
           photos={JournalFixtures.noopPhotoClient}
         />
       ));
-      await Testing.screen.findByRole("button", { name: "Archive Fern" });
-
-      Testing.fireEvent.click(Testing.screen.getByRole("button", { name: "Archive Fern" }));
+      Testing.fireEvent.click(await Testing.screen.findByRole("button", { name: "Edit Fern" }));
       Testing.fireEvent.click(Testing.screen.getByRole("button", { name: "Move to cemetery" }));
+      Testing.fireEvent.click(
+        Testing.within(Testing.screen.getByRole("alertdialog")).getByRole("button", {
+          name: "Move to cemetery",
+        }),
+      );
 
       const alert = await Testing.screen.findByRole("alert");
 
@@ -595,8 +610,13 @@ Vitest.describe("changing the journal", () => {
       ));
       await Testing.screen.findByRole("article", { name: "Fern" });
 
-      Testing.fireEvent.click(Testing.screen.getByRole("button", { name: "Archive Fern" }));
+      Testing.fireEvent.click(Testing.screen.getByRole("button", { name: "Edit Fern" }));
       Testing.fireEvent.click(Testing.screen.getByRole("button", { name: "Move to cemetery" }));
+      Testing.fireEvent.click(
+        Testing.within(Testing.screen.getByRole("alertdialog")).getByRole("button", {
+          name: "Move to cemetery",
+        }),
+      );
 
       const alert = await Testing.screen.findByRole("alert");
 

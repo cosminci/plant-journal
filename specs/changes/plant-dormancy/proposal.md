@@ -160,15 +160,15 @@ commit;
 
 ## Acceptance
 
-- **Garden.** Zzz is a labeled status indicator, not a button. It is gray when the plant is not dormant. During dormancy, a colored Zzz and the number of full days since dormancy began replace watering attention.
+- **Garden.** Show the crescent moon with three Zs only during dormancy. The icon and the number of full dormant days replace all watering attention. The icon is not a button.
 
-- **Edit plant.** Start or end dormancy at a chosen date and time, or correct either date of any recorded period. Dates must stay in order and cannot be in the future. Periods can touch but cannot overlap. Invalid edits save nothing and keep the draft visible with an error.
+- **Edit plant.** Place the cemetery and dormancy icons in the **Save** row. The dormancy icon opens one sheet with **Start dormancy** or **End dormancy** and up to 10 editable periods without pagination. Show the open period first, then closed periods by descending end date. Show the start and end dates on one row with an arrow between them and no visible labels. Show **Ongoing** in place of an open period's end date. **Save** applies date edits together; **Cancel** discards them. Starting or ending dormancy requires separate confirmation, uses the time of confirmation, and keeps unsaved date edits visible in the sheet. Closing the sheet preserves the plant draft and restores focus to the dormancy icon. Dates must stay in order and cannot be in the future. Periods can touch but cannot overlap. Invalid edits save nothing and keep the draft visible with an error.
 
 - **Initial date.** A new plant starts outside dormancy at creation. The operator seeds existing plants with their earliest recorded operation, or the seed time if there are no operations. No dormancy date can precede this fixed starting point.
 
 - **Watering attention.** Care and repot operations can still be logged. Attention skips dormant plants. When dormancy ends, attention resumes using waterings outside dormant periods and counts only time outside those periods. A watering at the start is excluded; one at the end counts. Date corrections recalculate attention without changing the journal.
 
-- **Archive.** Move **Move to cemetery** from the card to **Edit plant**. Keep the existing confirmation. Cancel returns focus to the archive action and preserves the draft. Confirming archives the plant without saving draft edits.
+- **Archive.** Move **Move to cemetery** from the card to **Edit plant** using its existing icon. Keep the existing confirmation. Cancel returns focus to the archive action and preserves the draft. Confirming archives the plant without saving draft edits.
 
 - **Cemetery.** Show `registeredAt` as the birth date instead of the first operation date. Keep the last operation date as the end date; if there are no operations, show only the birth date.
 

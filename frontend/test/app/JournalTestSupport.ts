@@ -33,6 +33,7 @@ const substrateComponents: readonly Journal.SubstrateComponent[] = [
 
 export const ficus = (): Journal.Plant => ({
   id: Journal.plantId("p1"),
+  registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
   details: {
     species: Journal.species("Ficus lyrata"),
     maybeNickname: Journal.nickname("Fern"),
@@ -44,6 +45,7 @@ export const ficus = (): Journal.Plant => ({
 
 export const monstera = (): Journal.Plant => ({
   id: Journal.plantId("p2"),
+  registeredAt: Journal.instant("2026-02-01T00:00:00Z"),
   details: {
     species: Journal.species("Monstera deliciosa"),
     maybeNickname: null,
@@ -215,6 +217,8 @@ export const buildJournal = ({
     pushAttention,
     setAttentionConnection,
     getPlants: () => Promise.resolve(queuedResult(plantResponses, plantReads++)),
+    getDormancy: () => Promise.resolve({ kind: "read", periods: [] }),
+    editDormancy: () => Promise.resolve({ kind: "failed", reason: new Error("unexpected write") }),
     createPlant: () =>
       Promise.resolve({ kind: "createFailed", reason: new Error("unexpected write") }),
     getArchivedCount: () => Promise.resolve({ kind: "read", count: 0 }),

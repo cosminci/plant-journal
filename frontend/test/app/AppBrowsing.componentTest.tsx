@@ -43,6 +43,290 @@ const renderJournal = (journal: ReturnType<typeof JournalFixtures.buildJournal>)
   ));
 
 describe("browsing the journal", () => {
+  it("reports a garden load failure when dormancy history cannot be read", async () => {
+    const journal = {
+      ...JournalFixtures.buildJournal({
+        getOperationsByPlantId: { p1: [JournalFixtures.operationsPage()] },
+      }),
+      getDormancy: () => Promise.resolve({ kind: "failed" as const, reason: new Error("offline") }),
+    };
+    renderJournal(journal);
+    expect(await screen.findByRole("alert")).toHaveTextContent("The journal could not be loaded.");
+  });
+
+  it.each([
+    { kind: "read", periods: [] },
+    { kind: "failed", reason: new Error("offline") },
+  ] satisfies Journal.DormancyResult[])(
+    "keeps a dormancy save after an older $kind read",
+    async (staleRead) => {
+      const base = JournalFixtures.buildJournal({
+        attentionProjection: unavailableFicusAttention,
+        getOperationsByPlantId: { p1: [JournalFixtures.operationsPage()] },
+      });
+      let resolveOperations!: (result: GetOperationsResult) => void;
+      const operationRead = new Promise<GetOperationsResult>((resolve) => {
+        resolveOperations = resolve;
+      });
+      const getOperations = vi.fn((id: PlantId, window: OperationWindow) =>
+        base.getOperations(id, window),
+      );
+      const getDormancy = vi.fn((id: PlantId) => base.getDormancy(id));
+      const journal = {
+        ...base,
+        getOperations,
+        getDormancy,
+        editPlant: () => Promise.resolve({ kind: "edited" as const }),
+        editDormancy: () =>
+          Promise.resolve({
+            kind: "read" as const,
+            periods: [{ id: "winter", startedAt: instant("2026-03-01T00:00:00Z"), endedAt: null }],
+          }),
+      };
+      renderJournal(journal);
+      const edit = await screen.findByRole("button", { name: "Edit Fern" });
+      getOperations.mockReturnValueOnce(operationRead);
+      getDormancy.mockResolvedValueOnce(staleRead);
+      fireEvent.click(edit);
+      const editor = () => within(screen.getByRole("dialog", { name: "Plant editor" }));
+      fireEvent.click(editor().getByRole("button", { name: "Save" }));
+      await waitFor(() => {
+        expect(getDormancy).toHaveBeenCalledTimes(2);
+      });
+      fireEvent.click(edit);
+      fireEvent.click(editor().getByRole("button", { name: "Dormancy" }));
+      const dormancy = within(screen.getByRole("dialog", { name: "Dormancy" }));
+      fireEvent.click(dormancy.getByRole("button", { name: "Start dormancy" }));
+      fireEvent.click(
+        within(screen.getByRole("alertdialog")).getByRole("button", { name: "Start dormancy" }),
+      );
+      await dormancy.findByRole("button", { name: "End dormancy" });
+      resolveOperations(JournalFixtures.operationsPage());
+      fireEvent.click(dormancy.getByRole("button", { name: "Cancel" }));
+      await waitFor(() => expect(editor().getByRole("button", { name: "Dormancy" })).toHaveFocus());
+      fireEvent.click(editor().getByRole("button", { name: "Collapse plant editor" }));
+      await waitFor(() => expect(edit).toHaveFocus());
+      expect(screen.getByLabelText("Dormant")).toBeInTheDocument();
+    },
+  );
+
+  it("uses saved dormancy immediately and keeps an invalid correction in the editor", async () => {
+    const period = {
+      id: "winter",
+      startedAt: instant("2026-03-01T00:00:00Z"),
+      endedAt: null,
+    };
+    const journal = {
+      ...JournalFixtures.buildJournal({
+        attentionProjection: unavailableFicusAttention,
+        getPlantsResults: [
+          { kind: "read", plants: [JournalFixtures.ficus(), JournalFixtures.monstera()] },
+        ],
+        getOperationsByPlantId: {
+          p1: [JournalFixtures.operationsPage()],
+          p2: [JournalFixtures.operationsPage()],
+        },
+      }),
+      editDormancy: vi.fn(
+        (_plant: PlantId, edit: Journal.DormancyEdit): Promise<Journal.DormancyResult> => {
+          switch (edit.kind) {
+            case "start":
+              return Promise.resolve({ kind: "read", periods: [period] });
+            case "end":
+              return Promise.resolve({
+                kind: "read",
+                periods: [{ ...period, endedAt: edit.since }],
+              });
+            case "correctDates":
+              return Promise.resolve({ kind: "invalid" });
+          }
+        },
+      ),
+    };
+    renderJournal(journal);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Fern" }));
+    const editor = screen.getByRole("dialog", { name: "Plant editor" });
+    const plantFields = within(editor);
+    const launcher = plantFields.getByRole("button", { name: "Dormancy" });
+    expect(launcher.parentElement).toBe(
+      plantFields.getByRole("button", { name: "Save" }).parentElement,
+    );
+    expect(launcher.parentElement).toBe(
+      plantFields.getByRole("button", { name: "Move to cemetery" }).parentElement,
+    );
+    const nicknameInput = plantFields.getByLabelText("Nickname (optional)");
+    fireEvent.input(nicknameInput, { target: { value: "Unsaved nickname" } });
+    fireEvent.click(launcher);
+    const panel = screen.getByRole("dialog", { name: "Dormancy" });
+    const fields = within(panel);
+    expect(fields.getByText("No dormancy periods yet.")).toBeVisible();
+    expect(fields.getByRole("button", { name: "Save" })).toBeDisabled();
+    const start = fields.getByRole("button", { name: "Start dormancy" });
+    fireEvent.click(start);
+    fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
+    await waitFor(() => expect(start).toHaveFocus());
+    expect(journal.editDormancy).not.toHaveBeenCalled();
+    let resolveStart!: (result: Journal.DormancyResult) => void;
+    journal.editDormancy.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStart = resolve;
+      }),
+    );
+    fireEvent.click(start);
+    const confirmStart = within(screen.getByRole("alertdialog")).getByRole("button", {
+      name: "Start dormancy",
+    });
+    vi.setSystemTime(new Date("2026-11-28T08:25:30.123Z"));
+    try {
+      fireEvent.click(confirmStart);
+      expect(journal.editDormancy).toHaveBeenCalledExactlyOnceWith("p1", {
+        kind: "start",
+        since: "2026-11-28T08:25:30.123Z",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(confirmStart).toBeDisabled();
+    resolveStart({ kind: "read", periods: [period] });
+    await fields.findByRole("button", { name: "End dormancy" });
+    const dormant = screen.getByRole("complementary", { name: "Dormant" });
+    expect(within(dormant).getByRole("img", { name: "Dormancy icon" })).toBeVisible();
+    expect(dormant).toHaveTextContent(/\d+ days/);
+    expect(
+      screen.queryByRole("button", { name: "Watering attention details for Fern" }),
+    ).toBeNull();
+    const history = fields;
+    expect(history.getByText("Ongoing")).toBeVisible();
+    fireEvent.input(history.getByLabelText("Start", { exact: true }), {
+      target: { value: "" },
+    });
+    fireEvent.click(history.getByRole("button", { name: "Save" }));
+    expect(await history.findByRole("alert")).toHaveTextContent("Enter a valid");
+    fireEvent.input(history.getByLabelText("Start", { exact: true }), {
+      target: { value: "2026-01-01" },
+    });
+    fireEvent.click(history.getByRole("button", { name: "Save" }));
+    expect(await history.findByRole("alert")).toHaveTextContent("Dates must be in order");
+    expect(history.getByLabelText("Start", { exact: true })).toHaveValue("2026-01-01");
+    fireEvent.click(history.getByRole("button", { name: "End dormancy" }));
+    const ending = within(screen.getByRole("alertdialog"));
+    const confirmEnd = ending.getByRole("button", { name: "End dormancy" });
+    journal.editDormancy.mockResolvedValueOnce({ kind: "invalid" });
+    fireEvent.click(confirmEnd);
+    expect(await ending.findByRole("alert")).toHaveTextContent("Dormancy could not be changed");
+    fireEvent.click(confirmEnd);
+    const endDate = await history.findByLabelText("End", { exact: true });
+    const startDate = history.getByLabelText("Start", { exact: true });
+    expect(startDate.closest("li")).toBe(endDate.closest("li"));
+    expect(startDate.closest("li")).toHaveTextContent(/^→$/);
+    expect(startDate).toHaveAttribute("type", "date");
+    expect(endDate).toHaveAttribute("type", "date");
+    expect(startDate).toHaveValue("2026-01-01");
+    expect(screen.queryByLabelText("Dormant")).toBeNull();
+    expect(screen.queryByRole("img", { name: /dorman/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Watering attention details for Fern" }),
+    ).toBeVisible();
+    const closed = history;
+    fireEvent.input(endDate, { target: { value: "" } });
+    fireEvent.click(closed.getByRole("button", { name: "Save" }));
+    expect(await closed.findByRole("alert")).toHaveTextContent("Enter a valid");
+    fireEvent.input(endDate, { target: { value: "2026-03-03" } });
+    journal.editDormancy.mockResolvedValueOnce({ kind: "failed", reason: new Error("offline") });
+    fireEvent.click(closed.getByRole("button", { name: "Save" }));
+    expect(await closed.findByRole("alert")).toHaveTextContent("Dormancy could not be saved.");
+    fireEvent.click(closed.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(launcher).toHaveFocus();
+    });
+    expect(nicknameInput).toHaveValue("Unsaved nickname");
+    fireEvent.click(launcher);
+    expect(screen.getByLabelText("Start", { exact: true })).not.toHaveValue("2026-01-01");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse dormancy editor" }));
+    await waitFor(() => {
+      expect(launcher).toHaveFocus();
+    });
+  });
+
+  it("shows only the latest ten periods, newest end first, and saves changed dates together", async () => {
+    const ongoing = { id: "ongoing", startedAt: instant("2025-12-01T12:00:00Z"), endedAt: null };
+    const periods = Array.from({ length: 11 }, (_, i) => ({
+      id: `period-${String(i)}`,
+      startedAt: instant(`2025-${String(i + 1).padStart(2, "0")}-01T12:00:00Z`),
+      endedAt: instant(`2025-${String(i + 1).padStart(2, "0")}-02T12:00:00Z`),
+    }));
+    const journal = {
+      ...JournalFixtures.buildJournal({
+        attentionProjection: unavailableFicusAttention,
+        getOperationsByPlantId: { p1: [JournalFixtures.operationsPage()] },
+      }),
+      getDormancy: () => Promise.resolve({ kind: "read" as const, periods: [...periods, ongoing] }),
+      editDormancy: vi.fn(() =>
+        Promise.resolve({ kind: "read" as const, periods: [...periods, ongoing] }),
+      ),
+    };
+    renderJournal(journal);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Fern" }));
+    const launcher = screen.getByRole("button", { name: "Dormancy" });
+    fireEvent.click(launcher);
+    const initial = within(screen.getByRole("dialog", { name: "Dormancy" }));
+    const firstStart = initial.getAllByLabelText<HTMLInputElement>("Start", { exact: true })[0];
+    if (firstStart === undefined) throw new Error("Expected an editable start date");
+    const original = firstStart.value;
+    fireEvent.input(firstStart, { target: { value: "2025-11-30" } });
+    fireEvent.input(firstStart, { target: { value: original } });
+    fireEvent.click(initial.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(launcher).toHaveFocus());
+    expect(journal.editDormancy).not.toHaveBeenCalled();
+    fireEvent.click(launcher);
+    const history = within(screen.getByRole("dialog", { name: "Dormancy" }));
+    const starts = history.getAllByLabelText("Start", { exact: true });
+    const ends = history.getAllByLabelText<HTMLInputElement>("End", { exact: true });
+    expect(starts).toHaveLength(10);
+    expect(history.getAllByRole("listitem")[0]).toHaveTextContent("Ongoing");
+    expect(ends.map((end) => end.value)).toEqual(
+      Array.from({ length: 9 }, (_, i) => `2025-${String(11 - i).padStart(2, "0")}-02`),
+    );
+    const newestStart = starts[1];
+    const oldestEnd = ends[8];
+    if (newestStart === undefined || oldestEnd === undefined)
+      throw new Error("Expected editable dates for ten periods");
+    fireEvent.input(newestStart, { target: { value: "2025-10-31" } });
+    fireEvent.input(oldestEnd, { target: { value: "2025-03-03" } });
+    const closed = { ...ongoing, endedAt: instant("2025-12-02T12:00:00Z") };
+    journal.editDormancy.mockResolvedValueOnce({ kind: "read", periods: [...periods, closed] });
+    fireEvent.click(history.getByRole("button", { name: "End dormancy" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "End dormancy" }),
+    );
+    const start = await history.findByRole("button", { name: "Start dormancy" });
+    journal.editDormancy.mockResolvedValueOnce({
+      kind: "read",
+      periods: [
+        ...periods,
+        closed,
+        { ...ongoing, id: "new", startedAt: instant("2026-01-01T12:00:00Z") },
+      ],
+    });
+    fireEvent.click(start);
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Start dormancy" }),
+    );
+    await history.findByRole("button", { name: "End dormancy" });
+    expect(history.getAllByRole("listitem")).toHaveLength(10);
+    expect(history.getAllByLabelText("End", { exact: true }).at(-1)).toHaveValue("2025-03-03");
+    journal.editDormancy.mockClear();
+    fireEvent.click(history.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(launcher).toHaveFocus());
+    expect(journal.editDormancy).toHaveBeenCalledExactlyOnceWith("p1", {
+      kind: "correctDates",
+      periods: [
+        { ...periods[10], startedAt: "2025-10-31T12:00:00.000Z" },
+        { ...periods[2], endedAt: "2025-03-03T12:00:00.000Z" },
+      ],
+    });
+  });
+
   it("should show each plant with its three most recent operations, oldest first", async () => {
     const neemId = pesticideId("00000000-0000-4000-8001-000000000003");
     const pesticides = new Set([neemId]);
@@ -958,7 +1242,7 @@ describe("browsing the journal", () => {
     fireEvent.input(within(dialog).getByRole("textbox", { name: "Location" }), {
       target: { value: "Living room" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() => {
       expect(screen.queryByRole("dialog", { name: "Plant editor" })).toBeNull();
@@ -989,7 +1273,7 @@ describe("browsing the journal", () => {
     await screen.findByRole("article", { name: "Fern" });
     fireEvent.click(screen.getByRole("button", { name: "Edit Fern" }));
     const dialog = screen.getByRole("dialog", { name: "Plant editor" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await vi.waitFor(() => {
       expect(screen.getByRole("alert")).toHaveTextContent("The journal could not be loaded.");
@@ -1025,7 +1309,7 @@ describe("browsing the journal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit Fern" }));
     const dialog = screen.getByRole("dialog", { name: "Plant editor" });
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(message);
   });
@@ -1131,8 +1415,16 @@ describe("browsing the journal", () => {
     renderJournal(journal);
     await screen.findByRole("article", { name: "Fern" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Archive Fern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Fern" }));
     fireEvent.click(screen.getByRole("button", { name: "Move to cemetery" }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog", { name: "Move Fern to cemetery" })).getByRole(
+        "button",
+        {
+          name: "Move to cemetery",
+        },
+      ),
+    );
     await screen.findByRole("button", { name: /Garden.*0 plants/ });
 
     journal.pushAttention({ measuredAt: Journal.instant("2026-01-02T00:00:00Z"), plants: [] });

@@ -13,6 +13,37 @@ export const makeHttpPlantClient = (
   const client = createClient<paths>({ baseUrl: globalThis.location.origin, fetch });
 
   return {
+    async getDormancy(plantId) {
+      try {
+        const { data, error } = await client.GET("/plants/{plantId}/dormancy", {
+          params: { path: { plantId } },
+        });
+        return data === undefined
+          ? { kind: "failed", reason: requestFailure(error) }
+          : { kind: "read", periods: data.periods.map(toPeriod) };
+      } catch (error) {
+        return { kind: "failed", reason: requestFailure(error) };
+      }
+    },
+    async editDormancy(plantId, edit) {
+      try {
+        const { data, error, response } = await client.PATCH("/plants/{plantId}/dormancy", {
+          params: { path: { plantId } },
+          body:
+            edit.kind === "correctDates"
+              ? edit
+              : edit.kind === "start"
+                ? { kind: "start", since: edit.since }
+                : { kind: "end", since: edit.since },
+        });
+        if (response.status === 422) return { kind: "invalid" };
+        return data === undefined
+          ? { kind: "failed", reason: requestFailure(error) }
+          : { kind: "read", periods: data.periods.map(toPeriod) };
+      } catch (error) {
+        return { kind: "failed", reason: requestFailure(error) };
+      }
+    },
     async createPlant(details): Promise<Journal.CreatePlantResult> {
       try {
         const { data, error, response } = await client.POST("/plants", {
@@ -109,6 +140,7 @@ export const makeHttpPlantClient = (
 
 const toPlant = (value: Wire["Plant"]): Journal.Plant => ({
   id: Journal.plantId(value.id),
+  registeredAt: Journal.instant(value.registeredAt),
   details: {
     species: Journal.species(value.details.species),
     maybeNickname:
@@ -117,6 +149,12 @@ const toPlant = (value: Wire["Plant"]): Journal.Plant => ({
     substrate: fromWireSubstrate(value.details.substrate),
     status: value.details.status,
   },
+});
+
+const toPeriod = (period: Wire["DormancyPeriod"]): Journal.DormancyPeriod => ({
+  id: period.id,
+  startedAt: Journal.instant(period.startedAt),
+  endedAt: period.endedAt === null ? null : Journal.instant(period.endedAt),
 });
 
 const requestFailure = (error: unknown): Error => coerceToError(error, "plant request failed");

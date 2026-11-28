@@ -67,7 +67,7 @@ jobs:
           npm ci --prefix .dagger --no-audit --no-fund
           dagger develop
           npm --prefix .dagger run verify
-          dagger call verify-cached --state="$RUNNER_TEMP/plant-build-cache" --all id
+          dagger call verify-cached --state="$RUNNER_TEMP/plant-build-cache" --all
           tag=$(dagger call release-version)
           registry_token=$(curl -fsS -u "$GITHUB_ACTOR:$GITHUB_TOKEN" -G \
             --data-urlencode 'scope=repository:cosminci/plant-journal:pull' \
